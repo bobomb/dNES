@@ -1,0 +1,11 @@
+{
+	"name": "dNES",
+	"description": "A cycle-accurate NES emulator written in D",
+	"copyright": "Copyright © 2015 dNES contributors",
+	"authors": ["bittwiddler1", 
+		     "bobomb"],
+	"dependencies": {
+	},
+	"license": "GPL-2.0",
+	"targetType": "executable",
+}
