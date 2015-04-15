@@ -1,0 +1,4 @@
+language: d
+d: ldc-0.15.1
+
+script: build.sh
