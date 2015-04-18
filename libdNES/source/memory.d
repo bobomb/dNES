@@ -11,6 +11,7 @@ class Memory
 {
     ubyte[0x10000] data; // 16KiB addressing range
 
+    // @region unittest: Memory initialization
     unittest
     {
         import std.algorithm;
@@ -21,14 +22,16 @@ class Memory
 
         assert(value == 0); 
     }
+    //@endregion
 
     ubyte[] read(ubyte address, ubyte length=1)
     {
-        uint start = address;
-        uint end   = address + length;
+        auto start = address;
+        auto end   = address + length;
 
         return data[start..end];
     }
+    // @region unittest read(ubyte, ubyte)
     unittest 
     {
         auto mem = new Memory;
@@ -40,12 +43,13 @@ class Memory
         result = mem.read(0x0, 0x4);
         assert(result[0..4] == mem.data[0..4]);
     }
+    //@endregion
     
     void write(ushort address, ubyte value)
     {
         data[address] = value;
     }
-
+    //@region unittest write(ushort, ubyte)
     unittest
     {
         auto mem = new Memory;
@@ -54,6 +58,7 @@ class Memory
 
         assert(mem.data[0xB00B..0xB00D] == [ 0xB0, 0x0B]);
     }
+    //@endregion
 
     void  write(ushort address, ubyte[] values)
     {
@@ -62,7 +67,7 @@ class Memory
 
         data[start..end] = values;
     }
-
+    // @region unittest write(ushort,ubyte[])
     unittest
     {
         auto mem = new Memory;
@@ -70,8 +75,8 @@ class Memory
     
         assert(mem.data[0xB00B..0xB00D] == [ 0xB0, 0x0B]);
     }
+    //@endregion
 }
 
 
-// ex: set expandtab ts=4 sts=4 expandtab sw=4 filetype=d : 
-
+// ex: set foldmethod=marker foldmarker=@region,@endregion expandtab ts=4 sts=4 expandtab sw=4 filetype=d : 
