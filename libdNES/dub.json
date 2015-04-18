@@ -1,19 +1,15 @@
 {
-	"name": "dNES",
-	"description": "A cycle-accurate NES emulator written in D",
+	"name": "libdNES",
+	"description": "Implementation backend of the dNES emulator",
 	"copyright": "Copyright © 2015 dNES contributors",
 	"authors": [
 		"bittwiddler1", 
 		"bobomb"
 	],
 	"dependencies": {
-		"dnes:libdnes": "*"
 	},
-	"subPackages": [
-		"./libdNES/", 
-	],
-	"license": "GPL-3.0",
-	"targetType": "executable",
+	"license": "LGPL-3.0",
+	"targetType": "sourceLibrary",
 	"buildTypes": {
 		"debug": {
 			"buildOptions": ["debugMode", "debugInfo"]

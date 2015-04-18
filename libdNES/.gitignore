@@ -11,4 +11,4 @@ __dummy.html
 *.so
 *.lib
 *.dll
-*__test__library__*
+__test__library__*
