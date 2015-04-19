@@ -1,7 +1,7 @@
 /* cpu/package.d
  * Emulation code for the MOS5602 CPU.
  * Copyright (c) 2015 dNES Team.
- * License: LGPL 3.0
+ * License: GPL 3.0
  */
 
 module cpu;
