@@ -2,7 +2,7 @@
  * Emulation code for NES ROM/RAM. Interacts with classes implementing 
  * IMemoryMapper to simulate different memory mappers.
  * Copyright (c) 2015 dNES Team.
- * License: LGPL 3.0
+ * License: GPL 3.0
  */
 
 import std.bitmanip;
