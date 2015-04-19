@@ -1,3 +1,4 @@
+.directory
 .dub
 docs.json
 dub.selections.json
@@ -11,11 +12,4 @@ __dummy.html
 *.so
 *.lib
 *.dll
-*__test__library__*
-*.exe
-dnes_d.exe_cv
-*.pdb
-*.lst
-dnes.sln
-dnes.v12.suo
-dnes.visualdproj
+__test__library__*
