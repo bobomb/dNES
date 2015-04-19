@@ -28,21 +28,21 @@ class MOS6502
     ubyte y;  // y index
     ubyte pc; // program counter
     ubyte sp; // stack pointer
-    StatusRegister _status;
+    private StatusRegister _status;
 	@property
 	{
-		StatusRegister status()
+		ubyte status()
 		{
-			return _status;
+			return _status.value;
 		}
 
-		StatusRegister status(StatusRegister newStatus)
+		ubyte status(ubyte newStatus)
 		{
-			if(newStatus.value & (1<<5))
+			if(newStatus & (1<<5))
 			{
 				//do we need handle this case where we are trying to set bit 5 to zero where it indicates it should be 1?
 			}
-			return _status = newStatus;
+			return _status.value = newStatus;
 		}
 	}
 
