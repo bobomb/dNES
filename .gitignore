@@ -12,3 +12,10 @@ __dummy.html
 *.lib
 *.dll
 *__test__library__*
+*.exe
+dnes_d.exe_cv
+*.pdb
+*.lst
+dnes.sln
+dnes.v12.suo
+dnes.visualdproj
