@@ -53,7 +53,7 @@ class StatusRegister
     //@region unittest ubyte value(ubyte value)
     unittest 
     {
-        ubyte testInput = 0b0000_0000;
+        ubyte testInput = 0b1000_0110;
         auto register   = new StatusRegister;
         auto result     = register.value(testInput);
 
@@ -62,14 +62,17 @@ class StatusRegister
         assert(result != testInput);    // data was set with modification
                                         // immutable bits were not changed
         assert((result & _immutableBits) == _immutableBits ); 
+        assert( result == (testInput | (1 << 5)) ); // ensure other bits were set
 
-        /* CASE 2: Make sure the other bits can be replaced. */
+        /* CASE 2: Make sure *all* other bits can be replaced. */
         testInput = 0b1111_1111;
         result    = register.value(testInput);
         assert(result == register._value); // correct data was actually returned
         assert(result == testInput);    // data was set without modification
                                         // immutable bits were not changed
         assert((result & _immutableBits) == _immutableBits ); 
+        assert( result == (testInput | (1 << 5)) ); // ensure 6th bit is set
+
 
     } //@endregion
 
