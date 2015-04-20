@@ -341,7 +341,7 @@ class StatusRegister
 
     /** Do not change this constant.
       * Defines which status bits are constantly set to 1. */
-    private static ubyte _immutableBits = 0b0010_0000;  
+    private static immutable ubyte _immutableBits = 0b0010_0000;  
 }
 
 // ex: set foldmethod=marker foldmarker=@region,@endregion expandtab ts=4 sts=4 expandtab sw=4 filetype=d : 
