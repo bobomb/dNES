@@ -13,3 +13,10 @@ __dummy.html
 *.lib
 *.dll
 __test__library__*
+dnes.sln
+*.exe
+dnes.visualdproj
+dnes.v12.suo
+dnes_d.exe_cv
+*.pdb
+*.lst
