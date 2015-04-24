@@ -1,6 +1,6 @@
-/* memory.d
+/* RAM.d
  * Emulation code for NES ROM/RAM. Interacts with classes implementing 
- * IMemoryMapper to simulate different memory mappers.
+ * IRAMMapper to simulate different RAM mappers.
  * Copyright (c) 2015 dNES Team.
  * License: GPL 3.0
  */
@@ -12,11 +12,11 @@ class RAM : IMemory
 {
     ubyte[0x10000] data; // 16KiB addressing range
 
-    // @region unittest: Memory initialization
+    // @region unittest: RAM initialization
     unittest
     {
         import std.algorithm;
-        auto mem = new Memory;
+        auto mem = new RAM;
 
         // verify data is all 0s at the start
         auto value = sum!(ubyte[])(mem.data);
@@ -32,8 +32,7 @@ class RAM : IMemory
     // @region unittest read(ubyte, ubyte)
     unittest 
     {
-        auto mem = new Memory;
-
+        auto mem = new RAM;
         mem.data[0] = 0x00;
         mem.data[1] = 0xC0;
         mem.data[2] = 0xFF;
@@ -42,9 +41,8 @@ class RAM : IMemory
         auto result = mem.read(0x01);
         assert(result ==  0xC0);
         
-        auto result = mem.read(0x03);
+        result = mem.read(0x03);
         assert(result ==  0xEE);
-        
     }
     //@endregion
 
@@ -59,7 +57,7 @@ class RAM : IMemory
     // @region unittest read(ubyte, ubyte)
     unittest 
     {
-        auto mem = new Memory;
+        auto mem = new RAM;
 
         mem.data[0..4] = [ 0x00, 0xC0, 0xFF, 0xEE ];
         auto result = mem.read(0x1, 0x2);
@@ -77,7 +75,7 @@ class RAM : IMemory
     //@region unittest write(ushort, ubyte)
     unittest
     {
-        auto mem = new Memory;
+        auto mem = new RAM;
         mem.write(0xB00B, 0xB0);
         mem.write(0xB00C, 0x0B);
 
@@ -95,7 +93,7 @@ class RAM : IMemory
     // @region unittest write(ushort,ubyte[])
     unittest
     {
-        auto mem = new Memory;
+        auto mem = new RAM;
         mem.write(0xB00B, [0xB0, 0x0B]);
     
         assert(mem.data[0xB00B..0xB00D] == [ 0xB0, 0x0B]);

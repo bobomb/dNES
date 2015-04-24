@@ -19,5 +19,5 @@ int addStuff(int a, int b)
 unittest
 {
 	auto result = addStuff(1, 2);
-	assert(result == 2);
+	assert(result == 3);
 }
