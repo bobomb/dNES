@@ -1,5 +1,5 @@
 {
-	"name": "libdNES",
+	"name": "libdnes",
 	"description": "Implementation backend of the dNES emulator",
 	"copyright": "Copyright © 2015 dNES contributors",
 	"authors": [
