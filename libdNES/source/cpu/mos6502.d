@@ -6,7 +6,7 @@
 
 module cpu.mos6502;
 
-import cpu.statusregister;
+import statusregister;
 
 class MOS6502
 {

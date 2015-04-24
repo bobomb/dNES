@@ -3,7 +3,7 @@
  * Copyright (c) 2015 dNES Team.
  * License: GPL 3.0
  */
-module cpu.statusregister;
+module statusregister;
 
 import std.bitmanip;
 

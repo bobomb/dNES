@@ -4,10 +4,11 @@
  * Copyright (c) 2015 dNES Team.
  * License: GPL 3.0
  */
+module memory.ram;
 
-import std.bitmanip;
+import memory.imemory;
 
-class Memory
+class RAM : IMemory
 {
     ubyte[0x10000] data; // 16KiB addressing range
 
@@ -24,7 +25,31 @@ class Memory
     }
     //@endregion
 
-    ubyte[] read(ubyte address, ubyte length=1)
+    ubyte read(ushort address)
+    { 
+        return data[address];
+    }
+    // @region unittest read(ubyte, ubyte)
+    unittest 
+    {
+        auto mem = new Memory;
+
+        mem.data[0] = 0x00;
+        mem.data[1] = 0xC0;
+        mem.data[2] = 0xFF;
+        mem.data[3] = 0xEE;
+
+        auto result = mem.read(0x01);
+        assert(result ==  0xC0);
+        
+        auto result = mem.read(0x03);
+        assert(result ==  0xEE);
+        
+    }
+    //@endregion
+
+
+    ubyte[] read(ushort address, ubyte length)
     {
         auto start = address;
         auto end   = address + length;
