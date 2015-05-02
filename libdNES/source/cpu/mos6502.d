@@ -6,22 +6,61 @@
 
 module cpu.mos6502;
 
+
 import cpu.statusregister;
+import cpu.exceptions;
+import console;
+import memory;
 
 class MOS6502
 {
-    this()
+    this(Console console)
     {
-        status = new StatusRegister; 
+        this.status      = new StatusRegister; 
+        this.consoleref  = console;
     }
 
-    ubyte a;  // accumulator
-    ubyte x;  // x index
-    ubyte y;  // y index
-    ubyte pc; // program counter
-    ubyte sp; // stack pointer
-    StatusRegister status;
-    
+    void powercycle()
+    {
+        this.status.value = 0x34;
+        this.a = this.x = this.y = 0;
+        this.sp = 0xFD;
+
+        if (consoleref.memory is null) {
+            consoleref.memory = new Memory;
+        }
+        this.pc = 0xC000;
+    }
+
+    ushort fetch() 
+    {
+        return this.consoleref.memory.read16(pc);
+    }
+
+    void function(ubyte) decode(ushort opCodeWithArg)
+    {
+        auto opcode  = cast(ubyte)(opCodeWithArg >> 8);
+
+        switch (opcode)
+        {
+            // TODO: detect each opcode and return one of 128,043,00 functions :S
+            default:
+                throw new InvalidOpcodeException(opcode);
+        }
+    }
+
+    private 
+    {
+        Console consoleref;
+
+        ushort pc; // program counter
+        ubyte a;   // accumulator
+        ubyte x;   // x index
+        ubyte y;   // y index
+        ubyte sp;  // stack pointer
+        StatusRegister status;
+
+    }
 }
 
 
