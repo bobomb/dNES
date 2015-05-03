@@ -13,6 +13,18 @@ class StatusRegister
     {
         _value = _immutableBits; // bit 6 must be logical 1 at all times. 
     }
+	@safe nothrow reset()
+	{
+		_value = _immutableBits;
+	}
+	unittest
+	{
+		StatusRegister register = new StatusRegister;
+		register.i = 0x01;
+		assert(register._i == 0x01);
+		register.reset();
+		assert(register.value == register._immutableBits);
+	}
 
 
     //@region unittest this()

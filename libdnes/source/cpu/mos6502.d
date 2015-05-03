@@ -21,6 +21,15 @@ class MOS6502
     ubyte pc; // program counter
     ubyte sp; // stack pointer
     StatusRegister status;
+
+	void reset()
+	{
+		a = 0x00;
+		x = 0x00;
+		y = 0x00;
+		pc = 0x00;
+		sp = 0x00; //FIXME
+	}
     
 }
 
