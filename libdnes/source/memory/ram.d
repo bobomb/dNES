@@ -1,13 +1,14 @@
-/* memory.d
+/* RAM.d
  * Emulation code for NES ROM/RAM. Interacts with classes implementing 
- * IMemoryMapper to simulate different memory mappers.
+ * IRAMMapper to simulate different RAM mappers.
  * Copyright (c) 2015 dNES Team.
  * License: GPL 3.0
  */
+module memory.ram;
 
-import std.bitmanip;
+import memory.imemory;
 
-class Memory
+class RAM : IMemory
 {
     ubyte[0x10000] data; // 16KiB addressing range
 
@@ -27,10 +28,10 @@ class Memory
             data[i] = 0;
         } 
     }
-    // @region unittest: Memory initialization
+    // @region unittest: RAM initialization
     unittest
     {
-        auto mem = new Memory;
+        auto mem = new RAM;
         for (int i = 0; i != mem.data.length; ++i) {
             switch (i)
             {
@@ -75,22 +76,26 @@ class Memory
     //@endregion
 
     ubyte read(ushort address)
-    {
+    { 
         return data[address];
     }
-    // @region unittest read(ubyte)
+    // @region unittest read(ubyte, ubyte)
     unittest 
     {
-        auto mem = new Memory;
+        auto mem = new RAM;
+        mem.data[0] = 0x00;
+        mem.data[1] = 0xC0;
+        mem.data[2] = 0xFF;
+        mem.data[3] = 0xEE;
 
-        mem.data[0..4] = [ 0x00, 0xC0, 0xFF, 0xEE ];
-        auto result = mem.read(0x1);
-        assert(result == 0xC0 );
-
-        result = mem.read(0x3);
-        assert(result == 0xEE);
+        auto result = mem.read(0x01);
+        assert(result ==  0xC0);
+        
+        result = mem.read(0x03);
+        assert(result ==  0xEE);
     }
     //@endregion
+
     ushort read16(ushort address)
     {
         return ((data[address] << 8) | data[address+1]);
@@ -98,7 +103,7 @@ class Memory
     // @region unittest read16(ubyte)
     unittest 
     {
-        auto mem = new Memory;
+        auto mem = new RAM;
 
         mem.data[0..4] = [ 0x00, 0xC0, 0xFF, 0xEE ];
         auto result = mem.read16(0x1);
@@ -116,7 +121,7 @@ class Memory
     //@region unittest write(ushort, ubyte)
     unittest
     {
-        auto mem = new Memory;
+        auto mem = new RAM;
         mem.write(0xB00B, 0xB0);
         mem.write(0xB00C, 0x0B);
 
@@ -129,10 +134,10 @@ class Memory
         data[address] = ((value & 0xFF00) >> 8);
         data[address+1] = (value & 0x00FF);
     }
-    // @region unittest write(ushort,ubyte[])
+    // @region unittest write16(ushort, ushort)
     unittest
     {
-        auto mem = new Memory;
+        auto mem = new RAM;
         mem.write16(cast(ushort)(0xB00B), cast(ushort)(0xB00B));
          
         assert(mem.data[0xB00B] == 0xB0);

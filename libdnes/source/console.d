@@ -11,10 +11,14 @@ class Console
 {
     this()
     {
-        this.processor  = new MOS6502(this);
-        this.memory     = new Memory;   
 
     }
+
+	static void initialize()
+	{
+		processor  = new MOS6502();
+        memory     = new RAM;   
+	}
 
     void loadROM(string filename)
     {
@@ -32,8 +36,8 @@ class Console
         this.memory = null;
     }
 
-    MOS6502 processor;
-    Memory  memory;
+    static MOS6502 processor;
+    static RAM  memory;
 }
 
 // ex: set foldmethod=marker foldmarker=@region,@endregion expandtab ts=4 sts=4 expandtab sw=4 filetype=d : 

@@ -20,3 +20,13 @@ dnes.v12.suo
 dnes_d.exe_cv
 *.pdb
 *.lst
+*.tlog
+Debug/dNES.lnkdep
+*.exe_cv
+Debug/dNES.build
+*.cmd
+Debug/dNES.build.lnkarg
+*.map
+Debug/dNES.json
+Debug/dNES.buildlog.html
+Debug/dNES.dep
