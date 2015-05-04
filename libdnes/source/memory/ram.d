@@ -102,7 +102,7 @@ class RAM : IMemory
 
     ushort read16(ushort address)
     {
-        return ((data[address] << 8) | data[address+1]);
+        return ((data[address+1] << 8) | data[address]);
     }
     // @region unittest read16(ubyte)
     unittest 
@@ -111,10 +111,10 @@ class RAM : IMemory
 
         mem.data[0..4] = [ 0x00, 0xC0, 0xFF, 0xEE ];
         auto result = mem.read16(0x1);
-        assert(result == 0xC0FF );
+        assert(result == 0xFFC0 );
 
         result = mem.read16(0x0);
-        assert(result == 0x00C0);
+        assert(result == 0xC000);
     }
     //@endregion
     
@@ -135,8 +135,8 @@ class RAM : IMemory
 
     void  write16(ushort address, ushort value)
     {
-        data[address] = ((value & 0xFF00) >> 8);
-        data[address+1] = (value & 0x00FF);
+        data[address+1] = cast(ubyte)((value & 0xFF00) >> 8);
+        data[address] = cast(ubyte)(value & 0x00FF);
     }
     // @region unittest write16(ushort, ushort)
     unittest
@@ -144,8 +144,42 @@ class RAM : IMemory
         auto mem = new RAM;
         mem.write16(cast(ushort)(0xB00B), cast(ushort)(0xB00B));
          
-        assert(mem.data[0xB00B] == 0xB0);
-        assert(mem.data[0xB00C] == 0x0B);
+        assert(mem.data[0xB00B] == 0x0B);
+        assert(mem.data[0xB00C] == 0xB0);
+    }
+    //@endregion
+
+
+   
+    // Dlang does not automatically convert small int literals to ushort without
+    // a cast, which is stupid. Writing an overload to make the API cleaner. -_-
+    void write(uint address, ubyte value)
+    {
+       write(cast(ushort)(address & 0x0000FFFF), value);
+    }
+    //@region unittest write(uint, ubyte)
+    unittest
+    {
+        auto mem = new RAM;
+        mem.write(0xB00B, 0xB0);
+        mem.write(0xB00C, 0x0B);
+
+        assert(mem.data[0xB00B..0xB00D] == [ 0xB0, 0x0B]);
+    } 
+    //@endregion
+
+    void  write16(uint address, ushort value)
+    {
+        this.write16(cast(ushort)(address), value);
+    }
+    // @region unittest write16(uint, ushort)
+    unittest
+    {
+        auto mem = new RAM;
+        mem.write16(0xB00B, 0xB00B);
+         
+        assert(mem.data[0xB00B] == 0x0B);
+        assert(mem.data[0xB00C] == 0xB0);
     }
     //@endregion
 }
