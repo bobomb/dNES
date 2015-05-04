@@ -41,8 +41,17 @@ class MOS6502
 		y = 0x00;
 		pc = 0x00;
 		sp = 0x00; //FIXME
+        this.status.reset();
 	}
-
+    unittest
+    {
+        MOS6502 cpu;
+        cpu.reset();
+        assert(cpu.a == 0x00);
+        assert(cpu.x == 0x00);
+        assert(cpu.y == 0x00);
+        assert(cpu.pc == 0x00);
+    }
     void function(ubyte) decode(ushort opCodeWithArg)
     {
         auto opcode  = cast(ubyte)(opCodeWithArg >> 8);
