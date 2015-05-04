@@ -45,7 +45,7 @@ class MOS6502
 	}
     unittest
     {
-        MOS6502 cpu;
+        auto cpu = new MOS6502;
         cpu.reset();
         assert(cpu.a == 0x00);
         assert(cpu.x == 0x00);
