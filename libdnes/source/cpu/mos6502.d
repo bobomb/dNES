@@ -1,8 +1,8 @@
 /* cpu.d
- * Emulation code for the MOS5602 CPU.
- * Copyright (c) 2015 dNES Team.
- * License: GPL 3.0
- */
+* Emulation code for the MOS5602 CPU.
+* Copyright (c) 2015 dNES Team.
+* License: GPL 3.0
+*/
 
 module cpu.mos6502;
 import cpu.statusregister;
@@ -12,10 +12,9 @@ import memory;
 
 class MOS6502
 {
-    this(Console console)
+    this()
     {
         this.status      = new StatusRegister; 
-        this.consoleref  = console;
     }
 
     void powercycle()
@@ -24,16 +23,25 @@ class MOS6502
         this.a = this.x = this.y = 0;
         this.sp = 0xFD;
 
-        if (consoleref.memory is null) {
-            consoleref.memory = new RAM;
+        if (Console.memory is null) {
+            Console.initialize();
         }
         this.pc = 0xC000;
     }
 
     ushort fetch() 
     {
-        return this.consoleref.memory.read16(pc);
+        return Console.memory.read16(pc);
     }
+
+	void reset()
+	{
+		a = 0x00;
+		x = 0x00;
+		y = 0x00;
+		pc = 0x00;
+		sp = 0x00; //FIXME
+	}
 
     void function(ubyte) decode(ushort opCodeWithArg)
     {
@@ -46,27 +54,15 @@ class MOS6502
                 throw new InvalidOpcodeException(opcode);
         }
     }
-    void reset()
-    {
-	a = 0x00;
-	x = 0x00;
-	y = 0x00;
-	pc = 0x00;
-	sp = 0x00; //FIXME
-    }
 
     private 
     {
-        Console consoleref;
-
         ushort pc; // program counter
         ubyte a;   // accumulator
         ubyte x;   // x index
         ubyte y;   // y index
         ubyte sp;  // stack pointer
         StatusRegister status;
-
-
     }
 }
 
