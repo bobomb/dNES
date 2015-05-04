@@ -18,6 +18,18 @@ class InvalidOpcodeException : Exception
                                                                     opcode);
         super(writer.data);
     }    
+}
 
+
+class InvalidAddressingModeException : Exception
+{
+    this(string instruction, ubyte opcode)
+    {
+        auto writer = appender!string();
+        formattedWrite(writer, "Decoded opcode $%#d ", opcode);
+        formattedWrite(writer, "as '%s' but was unable to ", instruction);
+        formattedWrite(writer, "determine addressing mode");
+        super(writer.data);
+    }    
 }
 // ex: set foldmethod=marker foldmarker=@region,@endregion expandtab ts=4 sts=4 expandtab sw=4 filetype=d : 
