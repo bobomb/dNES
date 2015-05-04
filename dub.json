@@ -1,5 +1,5 @@
 {
-	"name": "dNES",
+	"name": "dnes",
 	"description": "A cycle-accurate NES emulator written in D",
 	"copyright": "Copyright © 2015 dNES contributors",
 	"authors": [
@@ -10,7 +10,7 @@
 		"dnes:libdnes": "*"
 	},
 	"subPackages": [
-		"./libdNES/", 
+		"./libdnes/", 
 	],
 	"license": "GPL-3.0",
 	"targetType": "executable",
