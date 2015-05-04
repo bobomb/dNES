@@ -58,12 +58,12 @@ class MOS6502
     //    The internal memory was unchanged
     //    APU mode in $4017 was unchanged
     //    APU was silenced ($4015 = 0)
-	void reset()
-	{
-		this.sp -= 0x03;
+    void reset()
+    {
+        this.sp -= 0x03;
         this.status.value = this.status.value | 0x04;
         // TODO: Console.MemoryMapper.Write(0x4015, 0);
-	}
+    }
     // @region unittest reset()
     unittest
     {
@@ -83,7 +83,7 @@ class MOS6502
 
     ubyte fetch() 
     {
-        return Console.ram.read(this.pc++);
+        return Console.ram.read(this.pc++); 
     }
     // @region unittest fetch() 
     unittest 
@@ -96,69 +96,214 @@ class MOS6502
         assert(cpu.pc == 0xC001);
 
         // Case 2: Instruction is properly read
-        Console.ram.write(cpu.pc, 0xFF);
+        Console.ram.write(cpu.pc, 0xFF);  // TODO: Find a way to replace with a MockRam class
         instruction = cpu.fetch();
         assert(cpu.pc == 0xC002);
         assert(instruction == 0xFF);
     } 
     // @endregion
 
-    void function(ubyte) decode(ubyte opcode)
+   
+    void delegate(ubyte) decode(ubyte opcode)
     {
         switch (opcode)
         {
+            case 0x4C:
+            case 0x6C:
+                return (&JMP);
             // TODO: detect each opcode and return one of 128,043,00 functions :S
             default:
                 throw new InvalidOpcodeException(opcode);
         }
     }
     // TODO: Write unit test before writing implementation (TDD)
+    // @region unittest decode(ubyte) 
+    unittest 
+    {
+        import std.file, std.stdio;
 
+        // Load a test ROM
+        auto ROMBytes = cast(ubyte[])read("libdnes/nestest.nes");
+        auto cpu     = new MOS6502;
+        cpu.powerOn();
 
+        {
+            ushort address = 0xC000;
+            for (uint i = 0x10; i < ROMBytes.length; ++i) {
+                Console.ram.write(address, ROMBytes[i]);
+                ++address;
+            }
+        }
+        
+        auto resultFunc = cpu.decode(cpu.fetch());
+        void delegate(ubyte) expectedFunc = &(cpu.JMP);
+        assert(resultFunc == expectedFunc);
+    }
+    // @endregion
+    
+
+    ushort delegate() decodeAddressMode(string instruction, ubyte opcode)
+    {
+        switch (opcode)
+        {
+            case 0x4C:
+                return &(absoluteAddressMode);
+            case 0x6C:
+                return &(indirectAddressMode);
+            default:
+                throw new InvalidAddressingModeException(instruction, opcode);
+        }
+    }
 
     // @region Instruction impl functions
+    // TODO: Add tracing so we can compare against nestest.log
+    private void JMP(ubyte opcode)
+    {
+        auto addressModeFunction = decodeAddressMode("JMP", opcode);
+        ushort finalAddress = addressModeFunction();
 
+        this.pc = finalAddress;
+    }
+
+    unittest //@region unittest JMP(ubyte)
+    {
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+        auto ram = Console.ram;
+
+        ram.write(0xC000, 0x4C);     // JMP, absolute addressmode
+        ram.write16(0xC001, 0xC005); // argument
+
+        ram.write(0xC005, 0x6C);     // JMP, indirect address
+        ram.write16(0xC006, 0xC00D); // address of address
+        ram.write16(0xC00D, 0xC00F); // final address
+
+        cpu.JMP(ram.read(cpu.pc++));
+        assert(cpu.pc == 0xC005);
+        cpu.JMP(ram.read(cpu.pc++));
+        assert(cpu.pc == 0xC00F);
+    }
+    // @endregion
     // @endregion
 
     // @region AddressingMode Functions
-    //immediate address mode is the operand is a 1 byte constant following the opcode
-    //so read the constant, increment pc by 1 and return it
-    ubyte addressImmediate()
+    // immediate address mode is the operand is a 1 byte constant following the
+    // opcode so read the constant, increment pc by 1 and return it
+    ushort immediateAddressMode()
     {
         return Console.ram.read(this.pc++);
     }
+    // @region unittest immediateAddressMode
+    unittest
+    {
+        ubyte result = 0;
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+
+        Console.ram.write(cpu.pc+0, 0x7D);
+        result = cast(ubyte)(cpu.immediateAddressMode());
+        assert(result == 0x7D);
+        assert(cpu.pc == 0xC001);
+    }
+    // @endregion
+
+    // zero page address indicates that byte following the operand is an address
+    // from 0x0000 to 0x00FF (256 bytes). in this case we read in the address 
+    // then use it to read the ram and return the value
+    ushort zeroPageAddressMode()
+    {
+        ubyte address = Console.ram.read(this.pc++);
+        return Console.ram.read(address);
+    }
+    // @region unittest zeroPageAddressMode()
     unittest
     {
         auto cpu = new MOS6502;
         cpu.powerOn();
 
+        // set ram 0x007D to arbitrary value
+        Console.ram.write(0x007D, 0x55);
+        // write address 0x7D to PC
         Console.ram.write(cpu.pc, 0x7D);
-        assert(cpu.addressImmediate() == 0x7D);
+        // zero page addressing mode will read address stored at cpu.pc which is
+        // 0x7D, then return the value stored in ram at 0x007D which should be 
+        // 0x55
+        assert(cpu.zeroPageAddressMode() == 0x55);
         assert(cpu.pc == 0xC001);
     }
+    // @endregion
 
-    //zero page address indicates that byte following the operand is an address from
-    //0x0000 to 0x00FF (256 bytes). in this case we read in the address then use it
-    //to read the ram and return the value
-    ubyte addressZeroPage()
+    ushort absoluteAddressMode()
     {
-        ubyte address = Console.ram.read(this.pc++);
-        return Console.ram.read(address);
+        return Console.ram.read16(this.pc++);
     }
-    unittest
+    // @region unittest absoluteAddressMode();
+    unittest 
     {
-        Console.initialize();
-        //set ram 0x007D to arbitrary value
-        Console.ram.write(0x007D, 0x55);
-        //set PC to 0xC0
-        Console.processor.pc = 0xC0;
-        //write address 0x7D to PC
-        Console.ram.write(0xC0, 0x7D);
-        //zero page addressing mode will read address stored at 0xC0 which is
-        //0x7D, then read the value stored in ram at 0x007D which should be 0x55
-        assert(Console.processor.addressZeroPage() == 0x55);
-        assert(Console.processor.pc == 0xC1);
+        auto cpu = new MOS6502;
+        ushort result = 0;
+        cpu.powerOn();
+
+        // Case 1: Absolute addressing is dead-simple. The argument of the 
+        // in this case is the address stored in the next two byts. 
+
+        // write address 0x7D00 to PC
+        Console.ram.write16(cpu.pc, 0x7D00);
+
+        result = cpu.absoluteAddressMode();
+        assert(result == 0x7D00);
+        assert(cpu.pc == 0xC001);
     }
+    // @endregion
+
+    ushort  indirectAddressMode()
+    {
+        ushort effectiveAddress = Console.ram.read16(this.pc++); 
+        ushort returnAddress = 0;
+
+        if ( (effectiveAddress & 0x00FF) == 0x00FF ) 
+        {
+            ubyte low = Console.ram.read(effectiveAddress);
+            ubyte high = Console.ram.read(effectiveAddress & 0xFF00);
+            returnAddress = (high << 8) | low;
+        }
+        else
+        {
+            returnAddress = Console.ram.read16(effectiveAddress);
+        }
+
+        return returnAddress;
+    }
+    // @region unittest indirectAddressMode()
+    unittest 
+    {
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+
+        // Case1: Straightforward indirection.
+        // Argument is an address contianing an address.
+        Console.ram.write16(cpu.pc, 0x0D10);
+        Console.ram.write16(0xD10, 0x1FFF);
+        assert(cpu.indirectAddressMode() == 0x1FFF);
+        assert(cpu.pc == 0xC001);
+
+        // Case 2:
+        // 6502 has a bug with the JMP instruction in indirect mode. If
+        // the lower byte of the argument is $10FF, it will read the lower byte
+        // of the real address from $10FF, and the high byte from $1000 instead
+        // of $1100 like it should.
+
+        // Place the high and low bytes of the operand in the proper places;
+        Console.ram.write(0x10FF, 0x55); // low byte
+        Console.ram.write(0x1000, 0x7D); // misplaced high byte
+        
+        // Set up the program counter to read from $10FF and trigger the "bug"
+        Console.ram.write16(cpu.pc, 0x10FF);
+
+        assert(cpu.indirectAddressMode() == 0x7D55);
+        assert(cpu.pc == 0xC002);
+    }
+
     // @endregion
 
     private 
