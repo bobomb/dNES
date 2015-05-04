@@ -28,19 +28,30 @@ class MOS6502
         }
         this.pc = 0xC000;
     }
-
-    ushort fetch() 
+    //Read 1 byte opcode, increment program counter by 1
+    ubyte fetch() 
     {
-        return Console.memory.read16(pc);
+        return Console.memory.read(this.pc++);
+    }
+    unittest
+    {
+        Console.initialize();
+        auto instruction = Console.processor.fetch();
+        assert(Console.processor.pc == 0x01);
+        Console.memory.write(Console.processor.pc, 0xFF);
+        instruction = Console.processor.fetch();
+        assert(Console.processor.pc == 0x02);
+        assert(instruction == 0xFF);
+        
     }
 
 	void reset()
 	{
-		a = 0x00;
-		x = 0x00;
-		y = 0x00;
-		pc = 0x00;
-		sp = 0x00; //FIXME
+		this.a = 0x00;
+		this.x = 0x00;
+		this.y = 0x00;
+		this.pc = 0x00;
+		this.sp = 0x00; //FIXME
         this.status.reset();
 	}
     unittest
@@ -52,6 +63,7 @@ class MOS6502
         assert(cpu.y == 0x00);
         assert(cpu.pc == 0x00);
     }
+
     void function(ubyte) decode(ushort opCodeWithArg)
     {
         auto opcode  = cast(ubyte)(opCodeWithArg >> 8);
