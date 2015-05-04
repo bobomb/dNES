@@ -21,13 +21,17 @@ class RAM : IMemory
         data[0x0009] = 0xEF;
         data[0x000a] = 0xDF;
         data[0x000f] = 0xBF;
+        
+        // @region TODO: Move to IMemoryMapper? These control the APU
         data[0x4017] = 0;
         data[0x4015] = 0;
         for (int i = 0x4000; i <= 0x400F; ++i)
         {
             data[i] = 0;
-        } 
+        }
+        // @endregion
     }
+
     // @region unittest: RAM initialization
     unittest
     {
@@ -47,8 +51,7 @@ class RAM : IMemory
                 case 0x000F:
                     assert(mem.data[i] == 0xBF);
                     break;
-                case 0x4015:
-                case 0x4017:
+                // @region TODO: Move to IMemoryMapper? These control the APU
                 case 0x4000:
                 case 0x4001:
                 case 0x4002:
@@ -65,8 +68,12 @@ class RAM : IMemory
                 case 0x400D:
                 case 0x400E:
                 case 0x400F:
+                case 0x4015:
+                case 0x4017:
                     assert(mem.data[i] == 0x00);
                     break;
+                // @endregion
+
                 default:
                     assert(mem.data[i] == 0xFF);
                     break;
@@ -83,10 +90,7 @@ class RAM : IMemory
     unittest 
     {
         auto mem = new RAM;
-        mem.data[0] = 0x00;
-        mem.data[1] = 0xC0;
-        mem.data[2] = 0xFF;
-        mem.data[3] = 0xEE;
+        mem.data[0..4] = [ 0x00, 0xC0, 0xFF, 0xEE ];
 
         auto result = mem.read(0x01);
         assert(result ==  0xC0);

@@ -17,56 +17,94 @@ class MOS6502
         this.status = new StatusRegister; 
     }
 
-    void powercycle()
+    // From http://wiki.nesdev.com/w/index.php/CPU_power_up_state
+    void powerOn()
     {
         this.status.value = 0x34;
         this.a = this.x = this.y = 0;
         this.sp = 0xFD;
 
-        if (Console.memory is null) {
-            Console.initialize();
+        if (Console.ram is null)
+        {
+            // Ram will only be null if a prior emulation has ended or if we are
+            // unit-testing. Normally, console will allocate this on program 
+            // start.
+            Console.ram = new RAM; 
         }
         this.pc = 0xC000;
     }
-    //Read 1 byte opcode, increment program counter by 1
-    ubyte fetch() 
-    {
-        return Console.memory.read(this.pc++);
-    }
-    unittest
-    {
-        Console.initialize();
-        auto instruction = Console.processor.fetch();
-        assert(Console.processor.pc == 0x01);
-        Console.memory.write(Console.processor.pc, 0xFF);
-        instruction = Console.processor.fetch();
-        assert(Console.processor.pc == 0x02);
-        assert(instruction == 0xFF);
-    }
-
-	void reset()
-	{
-		this.a = 0x00;
-		this.x = 0x00;
-		this.y = 0x00;
-		this.pc = 0x00;
-		this.sp = 0x00; //FIXME
-        this.status.reset();
-	}
+    // @region unittest powerOn()
     unittest
     {
         auto cpu = new MOS6502;
-        cpu.reset();
-        assert(cpu.a == 0x00);
-        assert(cpu.x == 0x00);
-        assert(cpu.y == 0x00);
-        assert(cpu.pc == 0x00);
+        cpu.powerOn();
+
+        assert(cpu.status.value == 0x34);
+        assert(cpu.a == 0);
+        assert(cpu.x == 0);
+        assert(cpu.y == 0);
+        assert(cpu.pc == 0xC000);
+
+        // Do not test the Console.ram constructor here, it should be tested
+        // in ram.d
     }
+    // @endregion
 
-    void function(ubyte) decode(ushort opCodeWithArg)
+    // From http://wiki.nesdev.com/w/index.php/CPU_power_up_state
+    // After reset
+    //    A, X, Y were not affected
+    //    S was decremented by 3 (but nothing was written to the stack)
+    //    The I (IRQ disable) flag was set to true (status ORed with $04)
+    //    The internal memory was unchanged
+    //    APU mode in $4017 was unchanged
+    //    APU was silenced ($4015 = 0)
+	void reset()
+	{
+		this.sp -= 0x03;
+        this.status.value = this.status.value | 0x04;
+        // TODO: Console.MemoryMapper.Write(0x4015, 0);
+	}
+    // @region unittest reset()
+    unittest
     {
-        auto opcode  = cast(ubyte)(opCodeWithArg >> 8);
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+        
+        cpu.status.value = 0x01;
+        cpu.a = cpu.x = cpu.y = 55;
+        cpu.sp = 0xF4;
+        cpu.pc= 0xF000;
+        cpu.reset();
 
+        assert(cpu.sp == (0xF4 - 0x03));
+        assert(cpu.status.value == (0x21 | 0x04)); // bit 6 (0x20) is always on
+    }
+    //@endregion
+
+    ubyte fetch() 
+    {
+        return Console.ram.read(this.pc++);
+    }
+    // @region unittest fetch() 
+    unittest 
+    {
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+
+        // Case 1: pc register properly incremented
+        auto instruction = cpu.fetch();
+        assert(cpu.pc == 0xC001);
+
+        // Case 2: Instruction is properly read
+        Console.ram.write(cpu.pc, 0xFF);
+        instruction = cpu.fetch();
+        assert(cpu.pc == 0xC002);
+        assert(instruction == 0xFF);
+    } 
+    // @endregion
+
+    void function(ubyte) decode(ubyte opcode)
+    {
         switch (opcode)
         {
             // TODO: detect each opcode and return one of 128,043,00 functions :S
@@ -74,44 +112,54 @@ class MOS6502
                 throw new InvalidOpcodeException(opcode);
         }
     }
+    // TODO: Write unit test before writing implementation (TDD)
 
+
+
+    // @region Instruction impl functions
+
+    // @endregion
+
+    // @region AddressingMode Functions
     //immediate address mode is the operand is a 1 byte constant following the opcode
     //so read the constant, increment pc by 1 and return it
     ubyte addressImmediate()
     {
-        return Console.memory.read(this.pc++);
+        return Console.ram.read(this.pc++);
     }
     unittest
     {
-        Console.initialize();
-        Console.processor.pc = 0xC0;
-        Console.memory.write(0xC0, 0x7D);
-        assert(Console.processor.addressImmediate() == 0x7D);
-        assert(Console.processor.pc == 0xC1);
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+
+        Console.ram.write(cpu.pc, 0x7D);
+        assert(cpu.addressImmediate() == 0x7D);
+        assert(cpu.pc == 0xC001);
     }
 
     //zero page address indicates that byte following the operand is an address from
     //0x0000 to 0x00FF (256 bytes). in this case we read in the address then use it
-    //to read the memory and return the value
+    //to read the ram and return the value
     ubyte addressZeroPage()
     {
-        ubyte address = Console.memory.read(this.pc++);
-        return Console.memory.read(address);
+        ubyte address = Console.ram.read(this.pc++);
+        return Console.ram.read(address);
     }
     unittest
     {
         Console.initialize();
-        //set memory 0x007D to arbitrary value
-        Console.memory.write(0x007D, 0x55);
+        //set ram 0x007D to arbitrary value
+        Console.ram.write(0x007D, 0x55);
         //set PC to 0xC0
         Console.processor.pc = 0xC0;
         //write address 0x7D to PC
-        Console.memory.write(0xC0, 0x7D);
+        Console.ram.write(0xC0, 0x7D);
         //zero page addressing mode will read address stored at 0xC0 which is
-        //0x7D, then read the value stored in memory at 0x007D which should be 0x55
+        //0x7D, then read the value stored in ram at 0x007D which should be 0x55
         assert(Console.processor.addressZeroPage() == 0x55);
         assert(Console.processor.pc == 0xC1);
     }
+    // @endregion
 
     private 
     {
@@ -125,5 +173,4 @@ class MOS6502
 }
 
 
-
-// ex: set foldmethod=marker foldmarker=@region,@endregion expandtab ts=4 sts=4 expandtab sw=4 filetype=d : 
+// ex :set foldmethod=marker foldmarker=@region,@endregion expandtab ts=4 sts=4 expandtab sw=4 filetype=d : 

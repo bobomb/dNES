@@ -17,7 +17,7 @@ class Console
 	static void initialize()
 	{
 		processor  = new MOS6502();
-        memory     = new RAM;   
+        ram     = new RAM;   
 	}
 
     void loadROM(string filename)
@@ -28,16 +28,18 @@ class Console
 
     void startEmulation()
     {
-        this.processor.powercycle(); 
+        this.processor.powerOn(); 
     }
 
     void endEmulation()
     {
-        this.memory = null;
+        this.memoryMapper = null;
+        this.ram = null;
     }
 
     static MOS6502 processor;
-    static RAM  memory;
+    static IMemory ram;
+    static IMemory memoryMapper;
 }
 
 // ex: set foldmethod=marker foldmarker=@region,@endregion expandtab ts=4 sts=4 expandtab sw=4 filetype=d : 

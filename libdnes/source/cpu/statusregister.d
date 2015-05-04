@@ -13,19 +13,6 @@ class StatusRegister
     {
         _value = _immutableBits; // bit 6 must be logical 1 at all times. 
     }
-	@safe nothrow reset()
-	{
-		_value = _immutableBits;
-	}
-	unittest
-	{
-		StatusRegister register = new StatusRegister;
-		register.i = 0x01;
-		assert(register._i == 0x01);
-		register.reset();
-		assert(register.value == register._immutableBits);
-	}
-
 
     //@region unittest this()
     unittest
@@ -43,6 +30,7 @@ class StatusRegister
         assert(register._n == 0b1);
         assert(register._c == 0b0);
     } //@endregion
+
     //@region Getters/Setters 
     @safe nothrow {
 
@@ -55,12 +43,7 @@ class StatusRegister
 
     @property ubyte value(ubyte value) 
     {
-        if ((value & (_immutableBits)) == 0) 
-        {
-            ubyte newval = value | (_immutableBits);
-            return _value = newval;
-        }
-        return _value = value;
+        return _value = (value | _immutableBits);
     }
     //@region unittest ubyte value(ubyte value)
     unittest 
@@ -77,14 +60,12 @@ class StatusRegister
         assert( result == (testInput | (1 << 5)) ); // ensure other bits were set
 
         /* CASE 2: Make sure *all* other bits can be replaced. */
-        testInput = 0b1111_1111;
+        testInput = 0b1101_1111;
         result    = register.value(testInput);
         assert(result == register._value); // correct data was actually returned
-        assert(result == testInput);    // data was set without modification
-                                        // immutable bits were not changed
-        assert((result & _immutableBits) == _immutableBits ); 
-        assert( result == (testInput | (1 << 5)) ); // ensure 6th bit is set
 
+        assert(result == (testInput | _immutableBits));
+        assert((result & _immutableBits) == _immutableBits ); 
 
     } //@endregion
 
