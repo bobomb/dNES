@@ -42,7 +42,6 @@ class MOS6502
         instruction = Console.processor.fetch();
         assert(Console.processor.pc == 0x02);
         assert(instruction == 0xFF);
-        
     }
 
 	void reset()
@@ -74,6 +73,44 @@ class MOS6502
             default:
                 throw new InvalidOpcodeException(opcode);
         }
+    }
+
+    //immediate address mode is the operand is a 1 byte constant following the opcode
+    //so read the constant, increment pc by 1 and return it
+    ubyte addressImmediate()
+    {
+        return Console.memory.read(this.pc++);
+    }
+    unittest
+    {
+        Console.initialize();
+        Console.processor.pc = 0xC0;
+        Console.memory.write(0xC0, 0x7D);
+        assert(Console.processor.addressImmediate() == 0x7D);
+        assert(Console.processor.pc == 0xC1);
+    }
+
+    //zero page address indicates that byte following the operand is an address from
+    //0x0000 to 0x00FF (256 bytes). in this case we read in the address then use it
+    //to read the memory and return the value
+    ubyte addressZeroPage()
+    {
+        ubyte address = Console.memory.read(this.pc++);
+        return Console.memory.read(address);
+    }
+    unittest
+    {
+        Console.initialize();
+        //set memory 0x007D to arbitrary value
+        Console.memory.write(0x007D, 0x55);
+        //set PC to 0xC0
+        Console.processor.pc = 0xC0;
+        //write address 0x7D to PC
+        Console.memory.write(0xC0, 0x7D);
+        //zero page addressing mode will read address stored at 0xC0 which is
+        //0x7D, then read the value stored in memory at 0x007D which should be 0x55
+        assert(Console.processor.addressZeroPage() == 0x55);
+        assert(Console.processor.pc == 0xC1);
     }
 
     private 
