@@ -12,16 +12,66 @@ class RAM : IMemory
 {
     ubyte[0x10000] data; // 16KiB addressing range
 
+    this()
+    {
+        for (int i = 0; i != data.length; ++i) {
+            data[i] = 0xFF;
+        }
+        data[0x0008] = 0xF7;
+        data[0x0009] = 0xEF;
+        data[0x000a] = 0xDF;
+        data[0x000f] = 0xBF;
+        data[0x4017] = 0;
+        data[0x4015] = 0;
+        for (int i = 0x4000; i <= 0x400F; ++i)
+        {
+            data[i] = 0;
+        } 
+    }
     // @region unittest: RAM initialization
     unittest
     {
-        import std.algorithm;
         auto mem = new RAM;
-
-        // verify data is all 0s at the start
-        auto value = sum!(ubyte[])(mem.data);
-
-        assert(value == 0); 
+        for (int i = 0; i != mem.data.length; ++i) {
+            switch (i)
+            {
+                case 0x0008:
+                    assert(mem.data[i] == 0xF7);
+                    break;
+                case 0x0009:
+                    assert(mem.data[i] == 0xEF);
+                    break;
+                case 0x000A:
+                    assert(mem.data[i] == 0xDF);
+                    break;
+                case 0x000F:
+                    assert(mem.data[i] == 0xBF);
+                    break;
+                case 0x4015:
+                case 0x4017:
+                case 0x4000:
+                case 0x4001:
+                case 0x4002:
+                case 0x4003:
+                case 0x4004:
+                case 0x4005:
+                case 0x4006:
+                case 0x4007:
+                case 0x4008:
+                case 0x4009:
+                case 0x400A:
+                case 0x400B:
+                case 0x400C:
+                case 0x400D:
+                case 0x400E:
+                case 0x400F:
+                    assert(mem.data[i] == 0x00);
+                    break;
+                default:
+                    assert(mem.data[i] == 0xFF);
+                    break;
+            }
+        }
     }
     //@endregion
 
@@ -47,24 +97,38 @@ class RAM : IMemory
     //@endregion
 
 
-    ubyte[] read(ushort address, ubyte length)
+    ubyte[] read(ushort address, ubyte length=1)
     {
-        auto start = address;
-        auto end   = address + length;
-
-        return data[start..end];
+        return data[address..address + length];
     }
-    // @region unittest read(ubyte, ubyte)
+    // @region unittest read(ubyte)
     unittest 
     {
         auto mem = new RAM;
 
         mem.data[0..4] = [ 0x00, 0xC0, 0xFF, 0xEE ];
-        auto result = mem.read(0x1, 0x2);
-        assert(result[0..2] ==  [ 0xC0, 0xFF ]);
+        auto result = mem.read(0x1);
+        assert(result == 0xC0 );
 
-        result = mem.read(0x0, 0x4);
-        assert(result[0..4] == mem.data[0..4]);
+        result = mem.read(0x3);
+        assert(result == 0xEE);
+    }
+    //@endregion
+    ushort read16(ushort address)
+    {
+        return ((data[address] << 8) | data[address+1]);
+    }
+    // @region unittest read16(ubyte)
+    unittest 
+    {
+        auto mem = new RAM;
+
+        mem.data[0..4] = [ 0x00, 0xC0, 0xFF, 0xEE ];
+        auto result = mem.read16(0x1);
+        assert(result == 0xC0FF );
+
+        result = mem.read16(0x0);
+        assert(result == 0x00C0);
     }
     //@endregion
     
@@ -83,20 +147,19 @@ class RAM : IMemory
     }
     //@endregion
 
-    void  write(ushort address, ubyte[] values)
+    void  write16(ushort address, ushort value)
     {
-        auto start = address;
-        auto end   = address + (cast(ushort)values.length);
-
-        data[start..end] = values;
+        data[address] = ((value & 0xFF00) >> 8);
+        data[address+1] = (value & 0x00FF);
     }
     // @region unittest write(ushort,ubyte[])
     unittest
     {
         auto mem = new RAM;
-        mem.write(0xB00B, [0xB0, 0x0B]);
-    
-        assert(mem.data[0xB00B..0xB00D] == [ 0xB0, 0x0B]);
+        mem.write16(cast(ushort)(0xB00B), cast(ushort)(0xB00B));
+         
+        assert(mem.data[0xB00B] == 0xB0);
+        assert(mem.data[0xB00C] == 0x0B);
     }
     //@endregion
 }
