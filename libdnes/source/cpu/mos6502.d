@@ -189,7 +189,7 @@ class MOS6502
     // @region AddressingMode Functions
     // immediate address mode is the operand is a 1 byte constant following the
     // opcode so read the constant, increment pc by 1 and return it
-    ushort immediateAddressMode()
+    ubyte immediateAddressMode()
     {
         return Console.ram.read(this.pc++);
     }
@@ -209,33 +209,62 @@ class MOS6502
 
     // zero page address indicates that byte following the operand is an address
     // from 0x0000 to 0x00FF (256 bytes). in this case we read in the address 
-    // then use it to read the ram and return the value
-    ushort zeroPageAddressMode()
+    // and return it
+    ubyte zeroPageAddressMode()
     {
         ubyte address = Console.ram.read(this.pc++);
-        return Console.ram.read(address);
+        return address;
     }
     // @region unittest zeroPageAddressMode()
     unittest
     {
         auto cpu = new MOS6502;
         cpu.powerOn();
-
-        // set ram 0x007D to arbitrary value
-        Console.ram.write(0x007D, 0x55);
         // write address 0x7D to PC
         Console.ram.write(cpu.pc, 0x7D);
         // zero page addressing mode will read address stored at cpu.pc which is
         // 0x7D, then return the value stored in ram at 0x007D which should be 
         // 0x55
-        assert(cpu.zeroPageAddressMode() == 0x55);
+        assert(cpu.zeroPageAddressMode() == 0x7D);
         assert(cpu.pc == 0xC001);
     }
     // @endregion
+    
+    // zero page index address indicates that byte following the operand is an address
+    // from 0x0000 to 0x00FF (256 bytes). in this case we read in the address 
+    // then offset it by the value in a specified register (X, Y, etc)
+    // when calling this function you must provide the value to be indexed by
+    // for example an instruction that is 
+    // STY Operand, Y
+    // Means we will take operand, offset it by the value in Y register
+    // and correctly round it and return it as a zero page memory address
+    ubyte zeroPageIndexedAddressMode(ubyte indexValue)
+    {
+        ubyte address = Console.ram.read(this.pc++);
+        address += indexValue;
+        return address;
+    }
+    unittest
+    {
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+        //pc is 0xC000 after powerOn()
+        // set ram at PC to a zero page indexed address, indexing y register
+        Console.ram.write(cpu.pc, 0xFF);
+        //set Y register to 5
+        cpu.y = 5;
+        // example STY will add operand to y register, and return that
+        // FF + 5 = overflow to 0x04
+        assert(cpu.zeroPageIndexedAddressMode(cpu.y) == 0x04);
+        assert(cpu.pc == 0xC001);
+    }
 
+    //absolute address mode reads 16 bytes so increment pc by 2
     ushort absoluteAddressMode()
     {
-        return Console.ram.read16(this.pc++);
+        ushort data = Console.ram.read16(this.pc);
+        this.pc += 0x2;
+        return data;
     }
     // @region unittest absoluteAddressMode();
     unittest 
@@ -252,13 +281,15 @@ class MOS6502
 
         result = cpu.absoluteAddressMode();
         assert(result == 0x7D00);
-        assert(cpu.pc == 0xC001);
+        assert(cpu.pc == 0xC002);
     }
     // @endregion
 
+    //remember to increment pc by 2 bytes when reading 2 bytes
     ushort  indirectAddressMode()
     {
-        ushort effectiveAddress = Console.ram.read16(this.pc++); 
+        ushort effectiveAddress = Console.ram.read16(this.pc); 
+        this.pc += 0x2;
         ushort returnAddress = 0;
 
         if ( (effectiveAddress & 0x00FF) == 0x00FF ) 
@@ -285,7 +316,7 @@ class MOS6502
         Console.ram.write16(cpu.pc, 0x0D10);
         Console.ram.write16(0xD10, 0x1FFF);
         assert(cpu.indirectAddressMode() == 0x1FFF);
-        assert(cpu.pc == 0xC001);
+        assert(cpu.pc == 0xC002);
 
         // Case 2:
         // 6502 has a bug with the JMP instruction in indirect mode. If
@@ -301,7 +332,7 @@ class MOS6502
         Console.ram.write16(cpu.pc, 0x10FF);
 
         assert(cpu.indirectAddressMode() == 0x7D55);
-        assert(cpu.pc == 0xC002);
+        assert(cpu.pc == 0xC004);
     }
 
     // @endregion
