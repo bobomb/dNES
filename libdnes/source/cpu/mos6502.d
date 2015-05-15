@@ -260,7 +260,13 @@ class MOS6502
         assert(cpu.pc == 0xC001);
     }
 
-
+    // for relative address mode we will calculate an adress that is
+    // between -128 to +127 from the PC + 1
+    // used only for branch instructions
+    // first byte after the opcode is the relative offset as a 
+    // signed byte. the offset is calculated from the position after the 
+    // operand so it is in actuality -126 to +129 from where the opcode 
+    // resides
     ushort relativeAddressMode()
     {
 	    byte offset = cast(byte)(Console.ram.read(this.pc++));
@@ -270,25 +276,25 @@ class MOS6502
     // @region unittest relativeAddressMode()
     unittest
     {
-        import std.stdio;
-
         auto cpu = new MOS6502;
         ushort result = 0;
         cpu.powerOn();
-
-        // Case 1: Relative Addess 
-
-        // write address 0x7D00 to PC
+        // Case 1 & 2 : Relative Addess forward
+        // relative offset will be +1
         Console.ram.write(cpu.pc, 0x01);
         result = cpu.relativeAddressMode();
         assert(cpu.pc == 0xC001); 
         assert(result == 0xC002);
-
+        //relative offset will be +3
         Console.ram.write(cpu.pc, 0x03);
         result = cpu.relativeAddressMode();
         assert(cpu.pc == 0xC002);
         assert(result == 0xC005);
-        
+        // Case 3: Relative Addess backwards
+        // relative offset will be -6 from 0xC003
+        // offset is from 0xC003 because the address mode
+        // decode function increments PC by 1 before calculating
+        // the final position
         ubyte off = cast(ubyte)-6;
         Console.ram.write(cpu.pc, off ); 
         result = cpu.relativeAddressMode();
@@ -296,7 +302,6 @@ class MOS6502
         assert(result == 0xBFFD);
     }
     // @endregion
-
 
     //absolute address mode reads 16 bytes so increment pc by 2
     ushort absoluteAddressMode()
