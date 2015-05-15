@@ -263,9 +263,8 @@ class MOS6502
 
     ushort relativeAddressMode()
     {
-	    int offset = cast(int)(Console.ram.read(this.pc++));
-	    int finalAddress = (this.pc + offset);
-
+	    byte offset = cast(byte)(Console.ram.read(this.pc++));
+	    int finalAddress = (cast(int)this.pc + offset);
 	    return cast(ushort)(finalAddress);
     }
     // @region unittest relativeAddressMode()
@@ -289,14 +288,12 @@ class MOS6502
         result = cpu.relativeAddressMode();
         assert(cpu.pc == 0xC002);
         assert(result == 0xC005);
-
-
-        Console.ram.write(cpu.pc, cast(ubyte)(6*-1)); 
+        
+        ubyte off = cast(ubyte)-6;
+        Console.ram.write(cpu.pc, off ); 
         result = cpu.relativeAddressMode();
         assert(cpu.pc == 0xC003);
-        writeln(cpu.pc)
-        writeln(result);
-        assert(result == 0xBFFC);
+        assert(result == 0xBFFD);
     }
     // @endregion
 
