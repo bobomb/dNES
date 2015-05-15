@@ -300,6 +300,18 @@ class MOS6502
         result = cpu.relativeAddressMode();
         assert(cpu.pc == 0xC003);
         assert(result == 0xBFFD);
+        // Case 4: Relative address backwards underflow when PC = 0
+        // Result will underflow as 0 - 6 = -6 = 
+        cpu.pc = 0x0;
+        Console.ram.write(cpu.pc, off);
+        result = cpu.relativeAddressMode();
+        assert(result == 0xFFFB);
+        // Case 5: Relative address forwards oferflow when PC = 0xFFFE
+        // and address is + 2
+        cpu.pc = 0xFFFE;
+        Console.ram.write(cpu.pc, 0x02);
+        result = cpu.relativeAddressMode();
+        assert(result == 0x01);
     }
     // @endregion
 
