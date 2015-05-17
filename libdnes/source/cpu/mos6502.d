@@ -340,6 +340,32 @@ class MOS6502
         assert(cpu.pc == 0xC002);
     }
     // @endregion
+    //absolute indexed address mode reads 16 bytes so increment pc by 2
+    ushort absoluteIndexedAddressMode(ubyte indexValue)
+    {
+        ushort data = Console.ram.read16(this.pc);
+        this.pc += 0x2;
+        data += indexValue;
+        return data;
+    }
+    // @region unittest absoluteIndexedAddressMode();
+    unittest 
+    {
+        auto cpu = new MOS6502;
+        ushort result = 0;
+        cpu.powerOn();
+
+        // Case 1: Absolute indexed addressing is dead-simple. The argument of the 
+        // in this case is the address stored in the next two bytes, which is added
+        // to third argument which in the index, which is usually X or Y register
+        // write address 0x7D00 to PC
+        Console.ram.write16(cpu.pc, 0x7D00);
+        cpu.y = 5;
+        result = cpu.absoluteIndexedAddressMode(cpu.y);
+        assert(result == 0x7D05);
+        assert(cpu.pc == 0xC002);
+    }
+    // @endregion
 
     //remember to increment pc by 2 bytes when reading 2 bytes
     ushort  indirectAddressMode()
