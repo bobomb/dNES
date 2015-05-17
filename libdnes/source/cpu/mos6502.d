@@ -417,6 +417,41 @@ class MOS6502
         assert(cpu.pc == 0xC004);
     }
 
+    // indexed indirect mode is a mode where the byte following the opcode is a zero page address
+    // which is then added to the X register (passed in). This memory address will then be read
+    // to get the final memory address and returned
+    // This mode does zero page wrapping 
+    // Additionally it will read the target address as 16 bytes
+    ushort indexedIndirectAddressMode(ubyte indexValue)
+    {
+        ubyte zeroPageAddress = Console.ram.read(this.pc++);
+        ubyte targetAddress = cast(ubyte)(zeroPageAddress + indexValue);
+        return Console.ram.read16(cast(ushort)targetAddress);
+    }
+    unittest 
+    {
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+        // Case 1 : no zero page wrapping
+        //write zero page addres 0x0F to PC
+        Console.ram.write(cpu.pc, 0x0F);
+        //write address 0xCDAB to zero page addres 0x0F+7 (bytes 0x16 and 0x17)
+        Console.ram.write(0x16, 0xAB);
+        Console.ram.write(0x17, 0xCD);
+        //indexed indirect with an idex of 7
+        ushort address = cpu.indexedIndirectAddressMode(0x7);
+        assert(address == 0xCDAB);
+
+        // Case 1 : zero page wrapping
+        //write zero page addres 0xFF to PC
+        Console.ram.write(cpu.pc, 0xFF);
+        //write address 0xCDAB to zero page addres 0xFF+7 (bytes 0x06 and 0x07)
+        Console.ram.write(0x06, 0xAB);
+        Console.ram.write(0x07, 0xCD);
+        //indexed indirect with an idex of 7
+        address = cpu.indexedIndirectAddressMode(0x7);
+        assert(address == 0xCDAB);
+    }
     // @endregion
 
     private 
