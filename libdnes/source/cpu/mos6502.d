@@ -454,6 +454,43 @@ class MOS6502
     }
     // @endregion
 
+    // indirect indexed is similar to indexed indirect, except the index offset
+    // is added to the final memory value instead of to the zero page address
+    // so this mode will read a zero page address as the next byte after the operand,
+    // look up a 16 bit value in the zero page, add the index to that and return it
+    // as the final address. note that there is no zero page address wrapping
+    ushort indirectIndexedAddressMode(ubyte indexValue)
+    {
+        ubyte zeroPageAddress = Console.ram.read(this.pc++);
+        ushort targetAddress = Console.ram.read16(cast(ushort) zeroPageAddress);
+        return cast(ushort) (targetAddress + indexValue);
+    }
+    unittest
+    {
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+        // Case 1 : no wrapping around address space
+        //write zero page addres 0x0F to PC
+        Console.ram.write(cpu.pc, 0x0F);
+        //write address 0xCDAB to zero page addres 0x0F and 0x10
+        Console.ram.write(0x0F, 0xAB);
+        Console.ram.write(0x10, 0xCD);
+        //indirect indexed with an idex of 7
+        ushort address = cpu.indirectIndexedAddressMode(0x7);
+        assert(address == 0xCDAB + 0x7);
+        // Case 2 : wrapping around the 16 bit address space
+        //write zero page addres 0x0F to PC
+        Console.ram.write(cpu.pc, 0x0F);
+        //write address 0xFFFE to zero page addres 0x0F and 0x10
+        Console.ram.write(0x0F, 0xFE);
+        Console.ram.write(0x10, 0xFF);
+        //indirect indexed with an idex of 7
+        address = cpu.indirectIndexedAddressMode(0x7);
+        import std.stdio;
+        writeln(0xFFFE + 7);
+        assert(address == cast(ushort)(0xFFFE + 7));
+    }
+
     private 
     {
         ushort pc; // program counter
