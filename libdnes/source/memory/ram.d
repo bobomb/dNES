@@ -99,7 +99,10 @@ class RAM : IMemory
         assert(result ==  0xEE);
     }
     //@endregion
-
+    
+    //performs a 16 bit read on a memory address
+    //NES is stored little endian so this converts it to
+    //big endian
     ushort read16(ushort address)
     {
         return ((data[address+1] << 8) | data[address]);
@@ -132,7 +135,9 @@ class RAM : IMemory
         assert(mem.data[0xB00B..0xB00D] == [ 0xB0, 0x0B]);
     }
     //@endregion
-
+    
+    //write16 will take in a big endian 16 bit value
+    //and write it to the NES in little endian form
     void  write16(ushort address, ushort value)
     {
         data[address+1] = cast(ubyte)((value & 0xFF00) >> 8);
