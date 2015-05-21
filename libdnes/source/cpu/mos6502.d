@@ -289,12 +289,12 @@ class MOS6502
 
         // Case 2:
         // 6502 has a bug with the JMP instruction in indirect mode. If
-        // the the argument is $10FF, it will read the lower byte
-        // of the real address from $10FF, and 
-        //  the high byte from $1000 instead of $1100 like it should.
+        // the argument is $10FF, it will read the lower byte as $FF, and 
+        // then fail to increment the higher byte from $10 to $11, 
+        // resulting in a read from $1000 rather than $1100 when loading the
+        // second byte
 
-        // Setup:
-        // Place the high and low bytes of the operand in the proper places
+        // Place the high and low bytes of the operand in the proper places;
         Console.ram.write(0x10FF, 0x55); // low byte
         Console.ram.write(0x1000, 0x7D); // misplaced high byte
         
