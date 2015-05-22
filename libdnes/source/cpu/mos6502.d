@@ -550,50 +550,55 @@ class MOS6502
         assert(address == cast(ushort)(0xFFFE + 7));
     }
 
-    ulong BMI()
+    void BMI()
     {
-        ulong cycles = 2;
+        this.cycles += 2;
         //Relative only
         ushort finalAddress = relativeAddressMode();
         if(status.n)
         {
-            if((this.pc % 0xFF) == (finalAddress % 0xFF))
+            if((this.pc / 0xFF) == (finalAddress / 0xFF))
             {
                 this.pc = finalAddress;
-                cycles++;
+                this.cycles++;
             }
             else
             {
                 this.pc = finalAddress;
                 //goes to a new page
-                cycles +=2;
+                this.cycles +=2;
             }
         }
-        return cycles;
     }
     unittest
     {
         auto cpu = new MOS6502;
         cpu.powerOn();
         auto ram = Console.ram;
-        //case 1 forward offset, n flag set
+        //case 1 forward offset, n flag set, jumps page boundary (4 cycles)
         cpu.status.n = 1;
         ram.write(cpu.pc, 0x4C); // argument
         auto savedPC = cpu.pc;
+        auto savedCycles = cpu.cycles;
         cpu.BMI();
         assert(cpu.pc == savedPC + 0x1 + 0x4C);
-        //case 2 forward offset, n flag is not set
+        assert(cpu.cycles == savedCycles + 0x4); 
+        //case 2 forward offset, n flag is not set, (2 cycles)
         cpu.status.n = 0;
         ram.write(cpu.pc, 0x4C); // argument
         savedPC = cpu.pc;
+        savedCycles = cpu.cycles;
         cpu.BMI();
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
+        assert(cpu.cycles == savedCycles + 0x2); (3 cycles)
         //case 3 negative offset, n flag is set
         cpu.status.n = 1;
         ram.write(cpu.pc, 0xF1); // (-15)
         savedPC = cpu.pc;
+        savedCycles = cpu.cycles;
         cpu.BMI();
         assert(cpu.pc == savedPC + 1 - 0xF);
+        assert(cpu.cycles == savedCycles + 0x3);
         //case 4 negative offset, n flag is not set
         cpu.status.n = 0;
         ram.write(cpu.pc, 0xF1); // argument
