@@ -155,7 +155,6 @@ class MOS6502
 
         this.pc = finalAddress;
     }
-
     unittest
     {
         auto cpu = new MOS6502;
@@ -319,6 +318,7 @@ class MOS6502
         assert(result == 0x7D00);
         assert(cpu.pc == 0xC002);
     }
+
     //absolute indexed address mode reads 16 bytes so increment pc by 2
     ushort absoluteIndexedAddressMode(ubyte indexValue)
     {
@@ -467,6 +467,27 @@ class MOS6502
         assert(address == cast(ushort)(0xFFFE + 7));
     }
 
+    ulong BMI()
+    {
+        ulong cycles = 2;
+        //Relative only
+        if(status.n)
+        {
+            ushort finalAddress = relativeAddressMode();
+            if((this.pc % 0xFF) == (finalAddress % 0xFF))
+            {
+                this.pc = finalAddress;
+                cycles++;
+            }
+            else
+            {
+                this.pc = finalAddress;
+                //goes to a new page
+                cycles +=2;
+            }
+        }
+        return cycles;
+    }
     private 
     {
         ushort pc; // program counter
