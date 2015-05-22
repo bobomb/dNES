@@ -471,9 +471,9 @@ class MOS6502
     {
         ulong cycles = 2;
         //Relative only
+        ushort finalAddress = relativeAddressMode();
         if(status.n)
         {
-            ushort finalAddress = relativeAddressMode();
             if((this.pc % 0xFF) == (finalAddress % 0xFF))
             {
                 this.pc = finalAddress;
@@ -488,6 +488,37 @@ class MOS6502
         }
         return cycles;
     }
+    unittest
+    {
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+        auto ram = Console.ram;
+        //case 1 forward offset, n flag set
+        cpu.status.n = 1;
+        ram.write(cpu.pc, 0x4C); // argument
+        auto savedPC = cpu.pc;
+        cpu.BMI();
+        assert(cpu.pc == savedPC + 0x1 + 0x4C);
+        //case 2 forward offset, n flag is not set
+        cpu.status.n = 0;
+        ram.write(cpu.pc, 0x4C); // argument
+        savedPC = cpu.pc;
+        cpu.BMI();
+        assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
+        //case 3 negative offset, n flag is set
+        cpu.status.n = 1;
+        ram.write(cpu.pc, 0xF1); // (-15)
+        savedPC = cpu.pc;
+        cpu.BMI();
+        assert(cpu.pc == savedPC + 1 - 0xF);
+        //case 4 negative offset, n flag is not set
+        cpu.status.n = 0;
+        ram.write(cpu.pc, 0xF1); // argument
+        savedPC = cpu.pc;
+        cpu.BMI();
+        assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
+    }
+
     private 
     {
         ushort pc; // program counter
