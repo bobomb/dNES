@@ -248,6 +248,7 @@ class MOS6502
         else
         {
             this.a += cast(ubyte)(result);
+            this.status.c = 0;
         }
 
         if (this.a == 0) 
