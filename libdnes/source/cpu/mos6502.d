@@ -17,6 +17,7 @@ class MOS6502
     {
         this.status = new StatusRegister; 
     }
+
     // From http://wiki.nesdev.com/w/index.php/CPU_power_up_state
     void powerOn()
     {
@@ -97,15 +98,35 @@ class MOS6502
         assert(instruction == 0xFF);
     } 
 
+    public @property ulong cycleCount() { return this.cycles; }
+    unittest
+    {
+        auto cpu = new MOS6502;
+        
+        assert(cpu.cycleCount() == 0);
+
+        cpu.cycles = 6543;
+        assert(cpu.cycleCount == 6543);
+    }
    
     void delegate(ubyte) decode(ubyte opcode)
     {
         switch (opcode)
         {
+            // JMP
             case 0x4C:
             case 0x6C:
                 return (&JMP);
-            // TODO: detect each opcode and return one of 128,043,00 functions :S
+            // ADC
+            case 0x69:
+            case 0x65:
+            case 0x75:
+            case 0x6D:
+            case 0x7D:
+            case 0x79:
+            case 0x61:
+            case 0x71:
+                return (&ADC);
             default:
                 throw new InvalidOpcodeException(opcode);
         }
@@ -134,28 +155,41 @@ class MOS6502
     }
     
 
+
     ushort delegate() decodeAddressMode(string instruction, ubyte opcode)
     {
         switch (opcode)
         {
-            case 0x4C:
+            // *** ABSOLUTE *** //
+            case 0x4C: // JMP
+            case 0x6D: // ADC
                 return &(absoluteAddressMode);
-            case 0x6C:
+            case 0x6C: // JMP
                 return &(indirectAddressMode);
             default:
                 throw new InvalidAddressingModeException(instruction, opcode);
         }
     }
 
+    //***** Instruction Implementation *****//
     // TODO: Add tracing so we can compare against nestest.log
     private void JMP(ubyte opcode)
     {
         auto addressModeFunction = decodeAddressMode("JMP", opcode);
-        ushort finalAddress = addressModeFunction();
+        ushort finalAddress = 0;
+
+        if (addressModeFunction == &absoluteAddressMode)
+        {
+            this.cycles += 3;
+        }
+        else if (addressModeFunction == &indirectAddressMode)
+        {
+            this.cycles += 5;
+        }
+        finalAddress = addressModeFunction();
 
         this.pc = finalAddress;
     }
-
     unittest
     {
         auto cpu = new MOS6502;
@@ -175,7 +209,56 @@ class MOS6502
         assert(cpu.pc == 0xC00F);
     }
 
-    // immediate address mode is the operand is a 1 byte constant following the
+    private void ADC(ubyte opcode)
+    {
+        auto addressModeFunction = decodeAddressMode("ADC", opcode);
+        ushort finalAddress = 0;
+        ubyte valueToAdd = 0;
+        auto ram = Console.ram;
+
+        if (addressModeFunction == &absoluteAddressMode)
+        {
+            this.cycles += 3;
+        }
+        else if (addressModeFunction == &indirectAddressMode)
+        {
+            this.cycles += 5;
+        }
+        finalAddress = addressModeFunction();
+        valueToAdd = ram.read(finalAddress);
+        if (valueToAdd > (255 - this.a)) 
+        {
+            this.a = cast(ubyte)(valueToAdd - cast(ubyte)(255 - this.a));
+            this.status.c = 1;
+        }
+        else
+        {
+            this.a += valueToAdd;
+        }
+
+        if (this.a == 0) this.status.z = 1;
+        // @TODO: How do I set the overflow flag? (v) 
+        if ((this.a & 0b1000_0000) == 0b1000_0000)  this.status.n = 1; 
+    }
+    unittest
+    {
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+        assert(cpu.a == 0);
+        auto ram = Console.ram;
+        
+        cpu.pc = 0xD00D;
+        ram.write16(cpu.pc, 0xB00B);
+        ram.write(0xB00B, 0x7D);
+        cpu.ADC(0x6D);
+
+        // @TODO: Properly test all the possible scenarios
+        assert(cpu.a == 0x7D);
+    }
+
+
+    //***** Addressing Modes *****//
+    // Immediate address mode is the operand is a 1 byte constant following the
     // opcode so read the constant, increment pc by 1 and return it
     ubyte immediateAddressMode()
     {
@@ -462,20 +545,20 @@ class MOS6502
         Console.ram.write(0x10, 0xFF);
         //indirect indexed with an idex of 7
         address = cpu.indirectIndexedAddressMode(0x7);
-        import std.stdio;
-        writeln(0xFFFE + 7);
         assert(address == cast(ushort)(0xFFFE + 7));
     }
 
-    private 
-    {
-        ushort pc; // program counter
-        ubyte a;   // accumulator
-        ubyte x;   // x index
-        ubyte y;   // y index
-        ubyte sp;  // stack pointer
-        StatusRegister status;
+    private {
+    ushort pc; // program counter
+    ubyte a;   // accumulator
+    ubyte x;   // x index
+    ubyte y;   // y index
+    ubyte sp;  // stack pointer
+    ulong cycles; // total cycles executed
     }
+
+
+    StatusRegister status;
 }
 
 
