@@ -17,22 +17,19 @@ class RAM : IMemory
         for (int i = 0; i != data.length; ++i) {
             data[i] = 0xFF;
         }
+
         data[0x0008] = 0xF7;
         data[0x0009] = 0xEF;
         data[0x000a] = 0xDF;
         data[0x000f] = 0xBF;
         
-        // @region TODO: Move to IMemoryMapper? These control the APU
         data[0x4017] = 0;
         data[0x4015] = 0;
         for (int i = 0x4000; i <= 0x400F; ++i)
         {
             data[i] = 0;
         }
-        // @endregion
     }
-
-    // @region unittest: RAM initialization
     unittest
     {
         auto mem = new RAM;
@@ -51,7 +48,6 @@ class RAM : IMemory
                 case 0x000F:
                     assert(mem.data[i] == 0xBF);
                     break;
-                // @region TODO: Move to IMemoryMapper? These control the APU
                 case 0x4000:
                 case 0x4001:
                 case 0x4002:
@@ -72,21 +68,17 @@ class RAM : IMemory
                 case 0x4017:
                     assert(mem.data[i] == 0x00);
                     break;
-                // @endregion
-
                 default:
                     assert(mem.data[i] == 0xFF);
                     break;
             }
         }
     }
-    //@endregion
-
+    
     ubyte read(ushort address)
     { 
         return data[address];
     }
-    // @region unittest read(ubyte, ubyte)
     unittest 
     {
         auto mem = new RAM;
@@ -98,7 +90,6 @@ class RAM : IMemory
         result = mem.read(0x03);
         assert(result ==  0xEE);
     }
-    //@endregion
     
     //performs a 16 bit read on a memory address
     //NES is stored little endian so this converts it to
@@ -107,7 +98,7 @@ class RAM : IMemory
     {
         return ((data[address+1] << 8) | data[address]);
     }
-    // @region unittest read16(ubyte)
+    
     unittest 
     {
         auto mem = new RAM;
@@ -119,13 +110,11 @@ class RAM : IMemory
         result = mem.read16(0x0);
         assert(result == 0xC000);
     }
-    //@endregion
     
     void write(ushort address, ubyte value)
     {
         data[address] = value;
     }
-    //@region unittest write(ushort, ubyte)
     unittest
     {
         auto mem = new RAM;
@@ -134,7 +123,7 @@ class RAM : IMemory
 
         assert(mem.data[0xB00B..0xB00D] == [ 0xB0, 0x0B]);
     }
-    //@endregion
+    
     
     //write16 will take in a big endian 16 bit value
     //and write it to the NES in little endian form
@@ -143,7 +132,6 @@ class RAM : IMemory
         data[address+1] = cast(ubyte)((value & 0xFF00) >> 8);
         data[address] = cast(ubyte)(value & 0x00FF);
     }
-    // @region unittest write16(ushort, ushort)
     unittest
     {
         auto mem = new RAM;
@@ -152,7 +140,7 @@ class RAM : IMemory
         assert(mem.data[0xB00B] == 0x0B);
         assert(mem.data[0xB00C] == 0xB0);
     }
-    //@endregion
+    
 
 
    
@@ -162,7 +150,6 @@ class RAM : IMemory
     {
        write(cast(ushort)(address & 0x0000FFFF), value);
     }
-    //@region unittest write(uint, ubyte)
     unittest
     {
         auto mem = new RAM;
@@ -171,13 +158,12 @@ class RAM : IMemory
 
         assert(mem.data[0xB00B..0xB00D] == [ 0xB0, 0x0B]);
     } 
-    //@endregion
+    
 
     void  write16(uint address, ushort value)
     {
         this.write16(cast(ushort)(address), value);
     }
-    // @region unittest write16(uint, ushort)
     unittest
     {
         auto mem = new RAM;
@@ -186,8 +172,7 @@ class RAM : IMemory
         assert(mem.data[0xB00B] == 0x0B);
         assert(mem.data[0xB00C] == 0xB0);
     }
-    //@endregion
+    
 }
 
-
-// ex: set foldmethod=marker foldmarker=@region,@endregion expandtab ts=4 sts=4 expandtab sw=4 filetype=d : 
+// ex: set foldmethod=syntax foldlevel=1 expandtab ts=4 sts=4 expandtab sw=4 filetype=d : 

@@ -13,8 +13,6 @@ class StatusRegister
     {
         _value = _immutableBits; // bit 6 must be logical 1 at all times. 
     }
-
-    //@region unittest this()
     unittest
     {
         auto register = new StatusRegister;
@@ -29,23 +27,22 @@ class StatusRegister
         register._value = 0b1010_0000;
         assert(register._n == 0b1);
         assert(register._c == 0b0);
-    } //@endregion
+    } 
 
-    //@region Getters/Setters 
+    
     @safe nothrow {
 
     @property ubyte value() { return this._value; }
-    //@region unittest ubyte value() 
-    unittest {
+    unittest 
+    {
         auto register = new StatusRegister;
         assert(register.value() == _immutableBits);
-    } //@endregion
+    } 
 
     @property ubyte value(ubyte value) 
     {
         return _value = (value | _immutableBits);
     }
-    //@region unittest ubyte value(ubyte value)
     unittest 
     {
         ubyte testInput = 0b1000_0110;
@@ -66,11 +63,9 @@ class StatusRegister
 
         assert(result == (testInput | _immutableBits));
         assert((result & _immutableBits) == _immutableBits ); 
-
-    } //@endregion
+    } 
 
     @property bool c() { return this._c; }
-    //@region unittest bool c()
     unittest 
     {   
         auto register = new StatusRegister;
@@ -79,14 +74,13 @@ class StatusRegister
         assert (register.c > 0);
         register.value = 0b1010_0100;
         assert (register.c  == 0);
-    } //@endregion
+    } 
     
     @property bool c(bool value) 
     { 
         this._c = value; 
         return this._c;
     }
-    //@region unittest bool c(bool value)
     unittest 
     {   
         auto register   = new StatusRegister;
@@ -100,10 +94,9 @@ class StatusRegister
         assert (register.c == register._c);
         assert (register.value == (register._immutableBits | 0b0000_0001));
 
-    } //@endregion
+    } 
 
-   @property bool z() { return this._z; }
-    //@region unittest bool z()
+    @property bool z() { return this._z; }
     unittest 
     {   
         auto register = new StatusRegister;
@@ -112,14 +105,13 @@ class StatusRegister
         assert (register.z > 0);
         register.value = 0b1010_0100;
         assert (register.z  == 0);
-    } //@endregion
+    } 
     
     @property bool z(bool value) 
     { 
         this._z = value; 
         return this._z;
     }
-    //@region unittest bool z(bool value)
     unittest 
     {   
         auto register   = new StatusRegister;
@@ -133,10 +125,9 @@ class StatusRegister
         assert (register.z == register._z);
         assert (register.value == (register._immutableBits | 0b0000_0010));
 
-    } //@endregion
+    } 
 
     @property bool i() { return this._i; }
-    //@region unittest bool i()
     unittest 
     {   
         auto register = new StatusRegister;
@@ -145,14 +136,13 @@ class StatusRegister
         assert (register.i > 0);
         register.value = 0b1010_0010;
         assert (register.i  == 0);
-    } //@endregion
+    } 
     
     @property bool i(bool value) 
     { 
         this._i = value; 
         return this._i;
     }
-    //@region unittest bool i(bool value)
     unittest 
     {   
         auto register   = new StatusRegister;
@@ -166,10 +156,9 @@ class StatusRegister
         assert (register.i == register._i);
         assert (register.value == (register._immutableBits | 0b0000_0100));
 
-    } //@endregion
+    } 
 
     @property bool d() { return this._d; }
-    //@region unittest bool d()
     unittest 
     {   
         auto register = new StatusRegister;
@@ -178,14 +167,13 @@ class StatusRegister
         assert (register.d > 0);
         register.value = 0b1010_0010;
         assert (register.d  == 0);
-    } //@endregion
+    } 
     
     @property bool d(bool value) 
     { 
         this._d = value; 
         return this._d;
     }
-    //@region unittest bool d(bool value)
     unittest 
     {   
         auto register   = new StatusRegister;
@@ -199,10 +187,9 @@ class StatusRegister
         assert (register.d == register._d);
         assert (register.value == (register._immutableBits | 0b0000_1000));
 
-    } //@endregion
+    } 
 
     @property bool b() { return this._b; }
-    //@region unittest bool b()
     unittest 
     {   
         auto register = new StatusRegister;
@@ -211,14 +198,13 @@ class StatusRegister
         assert (register.b > 0);
         register.value = 0b1010_1010;
         assert (register.b  == 0);
-    } //@endregion
+    } 
     
     @property bool b(bool value) 
     { 
         this._b = value; 
         return this._b;
     }
-    //@region unittest bool b(bool value)
     unittest 
     {   
         auto register   = new StatusRegister;
@@ -232,11 +218,10 @@ class StatusRegister
         assert (register.b == register._b);
         assert (register.value == (register._immutableBits | 0b0001_0000));
 
-    } //@endregion
+    } 
 
     /// The unused bit only has a getter, no setter.
     @property bool unused() { return this._unused; }
-    //@region unittest bool unused()
     unittest 
     {   
         auto register = new StatusRegister;
@@ -249,11 +234,10 @@ class StatusRegister
         register._value = 0b1000_0101; // Access the private variable directly 
                                        // and @#$! it
         assert (register.unused == 0); // the getter should display the value
-    } //@endregion
+    } 
 
 
     @property bool v() { return this._v; }
-    //@region unittest bool v()
     unittest 
     {   
         auto register = new StatusRegister;
@@ -262,14 +246,13 @@ class StatusRegister
         assert (register.v > 0);
         register.value = 0b1010_0100;
         assert (register.v  == 0);
-    } //@endregion
+    } 
     
     @property bool v(bool value) 
     { 
         this._v = value; 
         return this._v;
     }
-    //@region unittest bool v(bool value)
     unittest 
     {   
         auto register   = new StatusRegister;
@@ -283,10 +266,9 @@ class StatusRegister
         assert (register.v == register._v);
         assert (register.value == (register._immutableBits | 0b0100_0000));
 
-    } //@endregion
+    } 
 
-   @property bool n() { return this._n; }
-    //@region unittest bool n()
+    @property bool n() { return this._n; }
     unittest 
     {   
         auto register = new StatusRegister;
@@ -295,14 +277,13 @@ class StatusRegister
         assert (register.n > 0);
         register.value = 0b0110_0100;
         assert (register.n  == 0);
-    } //@endregion
+    } 
     
     @property bool n(bool value) 
     { 
         this._n = value; 
         return this._n;
     }
-    //@region unittest bool n(bool value)
     unittest 
     {   
         auto register   = new StatusRegister;
@@ -316,8 +297,8 @@ class StatusRegister
         assert (register.n == register._n);
         assert (register.value == (register._immutableBits | 0b1000_0000));
 
-    } //@endregion
-    } //@endregion
+    } 
+    } 
 
     private union  { 
         ubyte _value;
@@ -337,4 +318,4 @@ class StatusRegister
     private static immutable ubyte _immutableBits = 0b0010_0000;  
 }
 
-// ex: set foldmethod=marker foldmarker=@region,@endregion expandtab ts=4 sts=4 expandtab sw=4 filetype=d : 
+// ex: set foldmethod=syntax foldlevel=1 expandtab ts=4 sts=4 expandtab sw=4 filetype=d : 
