@@ -160,10 +160,11 @@ class MOS6502
     {
         switch (opcode)
         {
-            // *** ABSOLUTE *** //
+            // *** ABSOLUTE ***//
             case 0x4C: // JMP
             case 0x6D: // ADC
                 return &(absoluteAddressMode);
+            // *** INDIRECT **//
             case 0x6C: // JMP
                 return &(indirectAddressMode);
             default:
