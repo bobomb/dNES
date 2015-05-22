@@ -213,33 +213,92 @@ class MOS6502
     private void ADC(ubyte opcode)
     {
         auto addressModeFunction = decodeAddressMode("ADC", opcode);
-        ushort finalAddress = 0;
-        ubyte valueToAdd = 0;
+        bool bPageBoundaryCrossed = false;
         auto ram = Console.ram;
 
-        if (addressModeFunction == &absoluteAddressMode)
+        ushort a; // a = accumulator value
+        ushort m; // m = operand
+        ushort c; // c = carry value
+
+        a = this.a;
+        c = this.status.c;
+
+        if (addressModeFunction == &(immediateAddressMode)) 
         {
-            this.cycles += 3;
+            m = addressModeFunction();
         }
-        else if (addressModeFunction == &indirectAddressMode)
+        else
         {
-            this.cycles += 5;
+            ushort resolvedAddress = addressModeFunction();
+            if ((resolvedAddress & 0x00FF)  == 0x00FF) 
+            {
+                bPageBoundaryCrossed = true;
+            }
+            m = ram.read(resolvedAddress);
         }
-        finalAddress = addressModeFunction();
-        valueToAdd = ram.read(finalAddress);
-        if (valueToAdd > (255 - this.a)) 
+
+        auto result = cast(ushort)(a+m+c);
+
+        // Check for overflow
+        if (result > 255) 
         {
-            this.a = cast(ubyte)(valueToAdd - cast(ubyte)(255 - this.a));
+            this.a = cast(ubyte)(result - 255); 
             this.status.c = 1;
         }
         else
         {
-            this.a += valueToAdd;
+            this.a += cast(ubyte)(result);
+            this.status.c = 0;
         }
 
-        if (this.a == 0) this.status.z = 1;
-        // @TODO: How do I set the overflow flag? (v) 
-        if ((this.a & 0b1000_0000) == 0b1000_0000)  this.status.n = 1; 
+        if (this.a == 0)
+            this.status.z = 1;
+        else
+            this.status.z = 0;
+
+        if ((this.a & 0b1000_0000) == 0b1000_0000) 
+            this.status.n = 1; 
+        else
+            this.status.n = 0;
+
+        if (((this.a^m) & 0x80) == 0 && ((a^this.a) & 0x80) != 0)
+        {
+            this.status.v = 1;
+        }
+        else 
+        {
+            this.status.v = 0;
+        }
+
+        switch (opcode)
+        {
+            case 0x69: // Immediate
+                this.cycles += 2;
+                break;
+            case 0x65: // ZeroPage
+                this.cycles += 3;
+                break;
+            case 0x6D: // Absolute
+            case 0x75: // ZeroPage,X
+                this.cycles += 4;
+                break;
+            case 0x7D: // Absolute,X
+            case 0x79: // Absolute,Y
+                this.cycles += 4;
+                if (bPageBoundaryCrossed) 
+                    this.cycles++;
+                break;
+            case 0x61: // Indirect,X
+                this.cycles += 6;
+                break;
+            case 0x71: // Indirect,Y
+                this.cycles += 5;
+                if (bPageBoundaryCrossed) 
+                    this.cycles++;
+                break;
+            default:
+                throw new Exception("Invalid opcode [ADC], cannot determine cycle count");
+        }
     }
     unittest
     {
@@ -261,7 +320,7 @@ class MOS6502
     //***** Addressing Modes *****//
     // Immediate address mode is the operand is a 1 byte constant following the
     // opcode so read the constant, increment pc by 1 and return it
-    ubyte immediateAddressMode()
+    ushort immediateAddressMode()
     {
         return Console.ram.read(this.pc++);
     }
@@ -298,9 +357,9 @@ class MOS6502
         assert(cpu.pc == 0xC001);
     }
     
-    // zero page index address indicates that byte following the operand is an address
-    // from 0x0000 to 0x00FF (256 bytes). in this case we read in the address 
-    // then offset it by the value in a specified register (X, Y, etc)
+    // zero page index address indicates that byte following the operand is an 
+    // address from 0x0000 to 0x00FF (256 bytes). in this case we read in the 
+    // address then offset it by the value in a specified register (X, Y, etc)
     // when calling this function you must provide the value to be indexed by
     // for example an instruction that is 
     // STY Operand, Y
@@ -517,9 +576,10 @@ class MOS6502
 
     // indirect indexed is similar to indexed indirect, except the index offset
     // is added to the final memory value instead of to the zero page address
-    // so this mode will read a zero page address as the next byte after the operand,
-    // look up a 16 bit value in the zero page, add the index to that and return it
-    // as the final address. note that there is no zero page address wrapping
+    // so this mode will read a zero page address as the next byte after the 
+    // operand, look up a 16 bit value in the zero page, add the index to that 
+    // and return it as the final address. note that there is no zero page 
+    // address wrapping
     ushort indirectIndexedAddressMode(ubyte indexValue)
     {
         ubyte zeroPageAddress = Console.ram.read(this.pc++);
