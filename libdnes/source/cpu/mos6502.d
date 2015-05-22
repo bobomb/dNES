@@ -268,28 +268,31 @@ class MOS6502
         switch (opcode)
         {
             case 0x69: // Immediate
-                this.cycle += 2;
+                this.cycles += 2;
                 break;
             case 0x65: // ZeroPage
-                this.cycle += 3;
+                this.cycles += 3;
                 break;
             case 0x6D: // Absolute
             case 0x75: // ZeroPage,X
-                this.cycle += 4;
+                this.cycles += 4;
+                break;
             case 0x7D: // Absolute,X
             case 0x79: // Absolute,Y
-                this.cycle += 4;
+                this.cycles += 4;
                 if (bPageBoundaryCrossed) 
-                    this.cycle++;
+                    this.cycles++;
                 break;
             case 0x61: // Indirect,X
-                this.cycle += 6;
+                this.cycles += 6;
                 break;
             case 0x71: // Indirect,Y
-                this.cycle += 5;
+                this.cycles += 5;
                 if (bPageBoundaryCrossed) 
-                    this.cycle++;
+                    this.cycles++;
                 break;
+            default:
+                throw new Exception("Invalid opcode [ADC], cannot determine cycle count");
         }
     }
     unittest
