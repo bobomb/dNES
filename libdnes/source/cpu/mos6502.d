@@ -109,14 +109,14 @@ class MOS6502
         assert(cpu.cycleCount == 6543);
     }
    
-    void delegate(ubyte) decode(ubyte opcode)
+    void delegate(ushort) decode(ubyte opcode)
     {
         switch (opcode)
         {
             // JMP
             case 0x4C:
             case 0x6C:
-                return (&JMP);
+                return cast(void delegate(ushort))(&JMP);
             // ADC
             case 0x69:
             case 0x65:
@@ -126,7 +126,7 @@ class MOS6502
             case 0x79:
             case 0x61:
             case 0x71:
-                return (&ADC);
+                return cast(void delegate(ushort))(&ADC);
             default:
                 throw new InvalidOpcodeException(opcode);
         }
@@ -150,7 +150,7 @@ class MOS6502
         }
         
         auto resultFunc = cpu.decode(cpu.fetch());
-        void delegate(ubyte) expectedFunc = &(cpu.JMP);
+        void delegate(ushort) expectedFunc = cast(void delegate(ushort))&(cpu.JMP);
         assert(resultFunc == expectedFunc);
     }
     
@@ -590,7 +590,7 @@ class MOS6502
         savedCycles = cpu.cycles;
         cpu.BMI();
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
-        assert(cpu.cycles == savedCycles + 0x2); (3 cycles)
+        assert(cpu.cycles == savedCycles + 0x2); //(3 cycles)
         //case 3 negative offset, n flag is set
         cpu.status.n = 1;
         ram.write(cpu.pc, 0xF1); // (-15)
