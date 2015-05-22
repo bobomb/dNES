@@ -251,12 +251,16 @@ class MOS6502
             this.status.c = 0;
         }
 
-        if (this.a == 0) 
+        if (this.a == 0)
             this.status.z = 1;
-        
+        else
+            this.status.z = 0;
+
         if ((this.a & 0b1000_0000) == 0b1000_0000) 
             this.status.n = 1; 
-        
+        else
+            this.status.n = 0;
+
         if (((this.a^m) & 0x80) == 0 && ((a^this.a) & 0x80) != 0)
         {
             this.status.v = 1;
