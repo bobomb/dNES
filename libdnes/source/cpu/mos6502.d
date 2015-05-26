@@ -347,15 +347,15 @@ class MOS6502
         cpu.BMI();
         assert(cpu.pc == savedPC + 0x1 + 0x4C);
         assert(cpu.cycles == savedCycles + 0x4); 
-        //case 2 forward offset, n flag is not set, (2 cycles)
+        //case 2 forward offset, n flag is clear, (2 cycles)
         cpu.status.n = 0;
         ram.write(cpu.pc, 0x4C); // argument
         savedPC = cpu.pc;
         savedCycles = cpu.cycles;
         cpu.BMI();
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
-        assert(cpu.cycles == savedCycles + 0x2); //(3 cycles)
-        //case 3 negative offset, n flag is set
+        assert(cpu.cycles == savedCycles + 0x2); //(2 cycles)
+        //case 3 negative offset, n flag is set, (3 cycles)
         cpu.status.n = 1;
         ram.write(cpu.pc, 0xF1); // (-15)
         savedPC = cpu.pc;
@@ -363,7 +363,7 @@ class MOS6502
         cpu.BMI();
         assert(cpu.pc == savedPC + 1 - 0xF);
         assert(cpu.cycles == savedCycles + 0x3);
-        //case 4 negative offset, n flag is not set
+        //case 4 negative offset, n flag is clear (1 cycle)
         cpu.status.n = 0;
         ram.write(cpu.pc, 0xF1); // argument
         savedPC = cpu.pc;
@@ -397,7 +397,7 @@ class MOS6502
         auto cpu = new MOS6502;
         cpu.powerOn();
         auto ram = Console.ram;
-        //case 1 forward offset, z flag not set, jumps page boundary (4 cycles)
+        //case 1 forward offset, z flag clear, jumps page boundary (4 cycles)
         cpu.status.z = 0;
         ram.write(cpu.pc, 0x4D); // argument
         auto savedPC = cpu.pc;
@@ -413,7 +413,7 @@ class MOS6502
         cpu.BNE();
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
         assert(cpu.cycles == savedCycles + 0x2); //(2 cycles)
-        //case 3 negative offset, z flag is not set
+        //case 3 negative offset, z flag is clear (3 cycles)
         cpu.status.z = 0;
         ram.write(cpu.pc, 0xF1); // (-15)
         savedPC = cpu.pc;
@@ -421,12 +421,72 @@ class MOS6502
         cpu.BNE();
         assert(cpu.pc == savedPC + 1 - 0xF);
         assert(cpu.cycles == savedCycles + 0x3); //branch doesn't cross page boundary
-        //case 4 negative offset, z flag is set
+        //case 4 negative offset, z flag is set (1 cycle)
         cpu.status.z = 1;
         ram.write(cpu.pc, 0xF1); // argument
         savedPC = cpu.pc;
         cpu.BNE();
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
+    }
+
+    //If the negative flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
+    private void BPL()
+    {
+        this.cycles += 2;
+        //Relative only
+        ushort finalAddress = relativeAddressMode();
+        if(!status.n)
+        {
+            if((this.pc / 0xFF) == (finalAddress / 0xFF))
+            {
+                this.pc = finalAddress;
+                this.cycles++;
+            }
+            else
+            {
+                this.pc = finalAddress;
+                //goes to a new page
+                this.cycles +=2;
+            }
+        }
+    }
+    unittest
+    {
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+        auto ram = Console.ram;
+        //case 1 forward offset, n flag clear, jumps page boundary (4 cycles)
+        cpu.status.n = 0;
+        ram.write(cpu.pc, 0x4D); // argument
+        auto savedPC = cpu.pc;
+        auto savedCycles = cpu.cycles;
+        cpu.BPL();
+        assert(cpu.pc == savedPC + 0x1 + 0x4D);
+        assert(cpu.cycles == savedCycles + 0x4); //branch will cross a page boundary
+        //case 2 forward offset, n flag is set, (2 cycles)
+        cpu.status.n = 1;
+        ram.write(cpu.pc, 0x4D); // argument
+        savedPC = cpu.pc;
+        savedCycles = cpu.cycles;
+        cpu.BPL();
+        assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
+        assert(cpu.cycles == savedCycles + 0x2); //(2 cycles)
+        //case 3 negative offset, n flag is clear (3 cycles)
+        cpu.status.n = 0;
+        ram.write(cpu.pc, 0xF1); // (-15)
+        savedPC = cpu.pc;
+        savedCycles = cpu.cycles;
+        cpu.BPL();
+        assert(cpu.pc == savedPC + 1 - 0xF);
+        assert(cpu.cycles == savedCycles + 0x3); //branch doesn't cross page boundary
+        //case 4 negative offset, n flag is set (2 cycles)
+        cpu.status.n = 1;
+        ram.write(cpu.pc, 0xF1); // argument
+        savedPC = cpu.pc;
+        savedCycles = cpu.cycles;
+        cpu.BPL();
+        assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
+        assert(cpu.cycles == savedCycles + 0x2);
     }
 
     //***** Addressing Modes *****//
