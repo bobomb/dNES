@@ -782,6 +782,45 @@ class MOS6502
         assert(address == cast(ushort)(0xFFFE + 7));
     }
 
+    void setNmi()
+    {
+        nmi = true;
+    }
+
+    void setReset()
+    {
+        reset = true;
+    }
+
+    void setIrq()
+    {
+        irq = true;
+    }
+
+    //pushes a byte onto the stack, decrements stack pointer
+    void pushStack(ubyte data)
+    {
+        ushort stackAddress = this.stackBaseAddress + this.sp;
+        //add some logic here to possibly check for stack overflow conditions
+        Console.ram.write(stackAddress, data);
+        this.sp--;
+    }
+    unittest
+    {
+    }
+    //increments stack pointer and returns the byte from the top of the stack
+    ubyte popStack()
+    {
+        //remember sp points to the next EMPTY stack location so we increment SP first
+        //to get to the last stack value
+        this.sp++;
+        ushort stackAddress = this.stackBaseAddress + this.sp;
+        return Console.ram.read(stackAddress);
+    }
+    unittest
+    {
+    }
+
     private 
     {
         ushort pc; // program counter
@@ -790,9 +829,18 @@ class MOS6502
         ubyte y;   // y index
         ubyte sp;  // stack pointer
         ulong cycles; // total cycles executed
+        bool nmi; // non maskable interrupt line
+        bool reset; // reset interrupt line
+        bool irq; //software interrupt request line
     }
 
     StatusRegister status;
+
+    immutable ushort nmiAddress = 0xFFFA;
+    immutable ushort resetAddress = 0xFFFC;
+    immutable ushort irqAddress = 0xFFFE;
+    immutable ushort stackBaseAddress = 0x0100;
+    immutable ushort stackTopAddress = 0x01FF;
 }
 
 
