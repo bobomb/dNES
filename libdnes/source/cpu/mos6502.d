@@ -8,7 +8,6 @@
 module cpu.mos6502;
 import cpu.statusregister;
 import cpu.exceptions;
-import cpu.interrupt;
 import console;
 import memory;
 
@@ -794,7 +793,6 @@ class MOS6502
     }
 
     StatusRegister status;
-    Interrupt interrupt;
 }
 
 
