@@ -14,7 +14,7 @@ $0C: bytes: 3 cycles: 4 _____=>_____ R_ abs
 $0D: bytes: 3 cycles: 4 A____=>A___P R_ abs
 $0E: bytes: 3 cycles: 6 _____=>____P RW abs
 $0F: bytes: 3 cycles: 6 A____=>A___P RW abs
-$10: bytes: 2 cycles: 3 ____P=>_____ __ 
+$10: bytes: 2 cycles: 2 ____P=>_____ __ 
 $11: bytes: 2 cycles: 5 A____=>____P R_ izy
 $12: CRASH
 $13: bytes: 2 cycles: 8 A____=>____P RW izy
@@ -78,7 +78,7 @@ $4C: bytes: X cycles: 3 _____=>_____ __
 $4D: bytes: 3 cycles: 4 A____=>A___P R_ abs
 $4E: bytes: 3 cycles: 6 _____=>____P RW abs
 $4F: bytes: 3 cycles: 6 A____=>A___P RW abs
-$50: bytes: 2 cycles: 3 ____P=>_____ __ 
+$50: bytes: 2 cycles: 2 ____P=>_____ __ 
 $51: bytes: 2 cycles: 5 A____=>____P R_ izy
 $52: CRASH
 $53: bytes: 2 cycles: 8 A____=>____P RW izy
@@ -142,7 +142,7 @@ $8C: bytes: 3 cycles: 4 __Y__=>_____ _W abs
 $8D: bytes: 3 cycles: 4 A____=>_____ _W abs
 $8E: bytes: 3 cycles: 4 _X___=>_____ _W abs
 $8F: bytes: 3 cycles: 4 _____=>_____ _W abs
-$90: bytes: 2 cycles: 3 ____P=>_____ __ 
+$90: bytes: 2 cycles: 2 ____P=>_____ __ 
 $91: bytes: 2 cycles: 6 A____=>_____ RW izy
 $92: CRASH
 $93: bytes: 2 cycles: 6 _____=>_____ RW izy
@@ -206,7 +206,7 @@ $CC: bytes: 3 cycles: 4 __Y__=>____P R_ abs
 $CD: bytes: 3 cycles: 4 A____=>____P R_ abs
 $CE: bytes: 3 cycles: 6 _____=>____P RW abs
 $CF: bytes: 3 cycles: 6 A____=>____P RW abs
-$D0: bytes: 2 cycles: 3 ____P=>_____ __ 
+$D0: bytes: 2 cycles: 2 ____P=>_____ __ 
 $D1: bytes: 2 cycles: 5 A____=>____P R_ izy
 $D2: CRASH
 $D3: bytes: 2 cycles: 8 A____=>____P RW izy
