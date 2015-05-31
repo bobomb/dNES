@@ -158,6 +158,8 @@ class MOS6502
     {
         switch (opcode)
         {
+            case 0x69:
+                return &(immediateAddressMode);
             // *** ABSOLUTE ***//
             case 0x4C: // JMP
             case 0x6D: // ADC
@@ -236,7 +238,6 @@ class MOS6502
         }
 
         auto result = cast(ushort)(a+m+c);
-
         // Check for overflow
         if (result > 255) 
         {
@@ -245,7 +246,7 @@ class MOS6502
         }
         else
         {
-            this.a += cast(ubyte)(result);
+            this.a = cast(ubyte)(result);
             this.status.c = 0;
         }
 
@@ -268,50 +269,64 @@ class MOS6502
             this.status.v = 0;
         }
 
+        this.cycles += cycleCountTable[opcode];
         switch (opcode)
         {
-            case 0x69: // Immediate
-                this.cycles += 2;
-                break;
-            case 0x65: // ZeroPage
-                this.cycles += 3;
-                break;
-            case 0x6D: // Absolute
-            case 0x75: // ZeroPage,X
-                this.cycles += 4;
-                break;
+            case 0x71:
             case 0x7D: // Absolute,X
             case 0x79: // Absolute,Y
-                this.cycles += 4;
-                if (bPageBoundaryCrossed) 
-                    this.cycles++;
-                break;
-            case 0x61: // Indirect,X
-                this.cycles += 6;
-                break;
-            case 0x71: // Indirect,Y
-                this.cycles += 5;
                 if (bPageBoundaryCrossed) 
                     this.cycles++;
                 break;
             default:
-                throw new Exception("Invalid opcode [ADC], cannot determine cycle count");
-        }
+                { } // do nothing
+                break;
+        } 
     }
     unittest
     {
+        import std.stdio;
+
         auto cpu = new MOS6502;
         cpu.powerOn();
         assert(cpu.a == 0);
         auto ram = Console.ram;
-        
-        cpu.pc = 0xD00D;
+        auto cycles_start = cpu.cycles;
+        auto cycles_end = cpu.cycles;
+
+        // Case 1: Immediate 
+        cycles_start = cpu.cycles;
+        cpu.pc = 0x0101;          // move to new page
+        cpu.a = 0x20;             // give an initial value other than 0
+        cpu.status.c = 0;         // reset to 0
+        ram.write(cpu.pc, 0x40);  // write operand to memory
+
+        cpu.ADC(0x69);            // execute ADC immediate
+        cycles_end  = cpu.cycles; // get cycle count
+        assert(cpu.a == 0x60);    // 0x20 + 0x40 = 0x60
+        assert((cycles_end - cycles_start) == 2); // verify cycles taken 
+       
+        // Trigger overflow
+        ram.write(cpu.pc, 0xA0);
+        cpu.ADC(0x69);
+        assert(cpu.a == 0x01);
+        assert(cpu.status.c == 1);
+        ram.write(cpu.pc, 0x02);
+        cpu.ADC(0x69);
+        assert(cpu.status.c == 0);
+
+        // @TODO continue testing each addressing mode
+
+        // Case 4: Absolute
+        cycles_start = cpu.cycles;
+        cpu.a = 0;
+        cpu.pc = 0x0400;
         ram.write16(cpu.pc, 0xB00B);
         ram.write(0xB00B, 0x7D);
         cpu.ADC(0x6D);
-
-        // @TODO: Properly test all the possible scenarios
+        cycles_end  = cpu.cycles;
         assert(cpu.a == 0x7D);
+        assert((cycles_end - cycles_start) == 4);
     }
 
     private void BMI()
