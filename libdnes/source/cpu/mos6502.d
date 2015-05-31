@@ -789,7 +789,7 @@ class MOS6502
 
     void setReset()
     {
-        reset = true;
+        rst = true;
     }
 
     void setIrq()
@@ -830,7 +830,7 @@ class MOS6502
         ubyte sp;  // stack pointer
         ulong cycles; // total cycles executed
         bool nmi; // non maskable interrupt line
-        bool reset; // reset interrupt line
+        bool rst; // reset interrupt line
         bool irq; //software interrupt request line
     }
 
