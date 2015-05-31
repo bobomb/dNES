@@ -832,15 +832,17 @@ class MOS6502
         bool nmi; // non maskable interrupt line
         bool rst; // reset interrupt line
         bool irq; //software interrupt request line
+
+        StatusRegister status;
+
+        immutable ushort nmiAddress = 0xFFFA;
+        immutable ushort resetAddress = 0xFFFC;
+        immutable ushort irqAddress = 0xFFFE;
+        immutable ushort stackBaseAddress = 0x0100;
+        immutable ushort stackTopAddress = 0x01FF;
+
+        uint cycleCountTable[256];
     }
-
-    StatusRegister status;
-
-    immutable ushort nmiAddress = 0xFFFA;
-    immutable ushort resetAddress = 0xFFFC;
-    immutable ushort irqAddress = 0xFFFE;
-    immutable ushort stackBaseAddress = 0x0100;
-    immutable ushort stackTopAddress = 0x01FF;
 }
 
 
