@@ -800,7 +800,7 @@ class MOS6502
     //pushes a byte onto the stack, decrements stack pointer
     void pushStack(ubyte data)
     {
-        ushort stackAddress = this.stackBaseAddress + this.sp;
+        ushort stackAddress = cast(ushort)(this.stackBaseAddress + this.sp);
         //add some logic here to possibly check for stack overflow conditions
         Console.ram.write(stackAddress, data);
         this.sp--;
@@ -814,7 +814,7 @@ class MOS6502
         //remember sp points to the next EMPTY stack location so we increment SP first
         //to get to the last stack value
         this.sp++;
-        ushort stackAddress = this.stackBaseAddress + this.sp;
+        ushort stackAddress = cast(ushort)(this.stackBaseAddress + this.sp);
         return Console.ram.read(stackAddress);
     }
     unittest
