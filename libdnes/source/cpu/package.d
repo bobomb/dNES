@@ -8,3 +8,4 @@ module cpu;
 
 public import cpu.mos6502;
 public import cpu.statusregister;
+public import cpu.interrupt;
