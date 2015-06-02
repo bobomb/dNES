@@ -185,8 +185,11 @@ class MOS6502
     }
     
     //TODO
+    //On reset the cpu will load the approprate vector into the PC and continue execution from there
     void handleReset()
     {
+        ushort nextPC = Console.ram.read16(resetAddress);
+        this.pc = nextPC;
     }
     unittest
     {
