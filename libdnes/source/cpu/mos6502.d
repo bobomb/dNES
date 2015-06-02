@@ -173,7 +173,7 @@ class MOS6502
             handleIrq();
         }
         //Fetch
-        ubyte opcode = this.fetch();
+        ubyte opcode = fetch();
         //Decode
         auto instructionFunction = decode(opcode);
         //Execute
