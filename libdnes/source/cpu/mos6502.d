@@ -148,10 +148,64 @@ class MOS6502
                 ++address;
             }
         }
-        
+
         auto resultFunc = cpu.decode(cpu.fetch());
         void delegate(ushort) expectedFunc = cast(void delegate(ushort))&(cpu.JMP);
         assert(resultFunc == expectedFunc);
+    }
+
+    //perform another cpu cycle of emulation
+    void cycle()
+    {
+        //TODO
+        //Handle dem annoying interrupting things
+        //Priority: Reset > NMI > IRQ
+        if (this.rst)
+        {
+            handleReset();
+        }
+        if (this.nmi)
+        {
+            handleNmi();
+        }
+        if (this.irq)
+        {
+            handleIrq();
+        }
+        //Fetch
+        ubyte opcode = this.fetch();
+        //Decode
+        auto instructionFunction = decode(opcode);
+        //Execute
+        instructionFunction(opcode);
+    }
+    unittest
+    {
+        //TODO
+    }
+    
+    //TODO
+    void handleReset()
+    {
+    }
+    unittest
+    {
+    }
+
+    //TODO
+    void handleNmi()
+    {
+    }
+    unittest
+    {
+    }
+
+    //TODO
+    void handleIrq()
+    {
+    }
+    unittest
+    {
     }
 
     ushort delegate() decodeAddressMode(string instruction, ubyte opcode)
@@ -856,7 +910,7 @@ class MOS6502
         immutable ushort stackBaseAddress = 0x0100;
         immutable ushort stackTopAddress = 0x01FF;
 
-        uint cycleCountTable[256] = [
+        uint[256] cycleCountTable = [
         //  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
             7, 6, 0, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6,   // 0
             2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,   // 1
