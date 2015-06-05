@@ -157,8 +157,6 @@ class MOS6502
     //perform another cpu cycle of emulation
     void cycle()
     {
-        //TODO
-        //Handle dem annoying interrupting things
         //Priority: Reset > NMI > IRQ
         if (this.rst)
         {
@@ -184,30 +182,67 @@ class MOS6502
         //TODO
     }
     
-    //TODO
-    //On reset the cpu will load the approprate vector into the PC and continue execution from there
     void handleReset()
     {
-        ushort nextPC = Console.ram.read16(resetAddress);
-        this.pc = nextPC;
+		auto resetVectorAddress = Console.ram.read16(this.resetAddress);
+		this.pc = resetVectorAddress;
+		this.rst = false;
+		this.cycles += 7;
     }
     unittest
     {
+		auto cpu = new MOS6502;
+        cpu.powerOn();
+        auto ram = Console.ram;
+		auto savedCycles = cpu.cycles;
+		ram.write16(cpu.resetAddress, 0xFC10); //write interrupt handler address
+		cpu.rst = true;
+		cpu.handleReset();
+		assert(cpu.cycles == savedCycles + 7);
+		assert(cpu.pc == 0xFC10);
+		assert(cpu.rst == false);
     }
 
-    //TODO
     void handleNmi()
     {
+		pushStack(cast(byte)(this.pc >> 8)); //write PC high byte to stack
+		pushStack(cast(byte)(this.pc));
+		pushStack(this.status.value);
+		auto nmiVectorAddress = Console.ram.read16(this.nmiAddress);
+		this.pc = nmiVectorAddress;
+		this.nmi = false;
+		this.cycles += 7;
     }
     unittest
     {
+		auto cpu = new MOS6502;
+        cpu.powerOn();
+        auto ram = Console.ram;
+		auto savedCycles = cpu.cycles;
+		auto savedPC = cpu.pc;
+		auto savedStatus = cpu.status.value;
+		ram.write16(cpu.nmiAddress, 0x1D42); //write interrupt handler address
+		cpu.handleNmi();
+		assert(cpu.popStack() == savedStatus);
+		ushort newPC = cpu.popStack() | (cpu.popStack() << 8);
+		assert(cpu.cycles == savedCycles + 7);
+		assert(cpu.pc == 0x1D42);
     }
 
-    //TODO
     void handleIrq()
     {
+		if(this.status.i)
+			return; //don't do anything if interrupt disable is set
+
+		pushStack(cast(byte)(this.pc >> 8)); //write PC high byte to stack
+		pushStack(cast(byte)(this.pc));
+		pushStack(this.status.value);
+		auto nmiVectorAddress = Console.ram.read16(this.nmiAddress);
+		this.pc = nmiVectorAddress;
+		this.nmi = true;
+		this.cycles +=7;
     }
-    unittest
+    unittest //TODO
     {
     }
 
