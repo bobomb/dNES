@@ -267,7 +267,6 @@ class MOS6502
 		cpu.handleIrq();
 		assert(cpu.cycles == savedCycles + 0);
 		assert(cpu.pc == 0xC296);
-        assert(previousPC == savedPC);
     }
 
     ushort delegate() decodeAddressMode(string instruction, ubyte opcode)
