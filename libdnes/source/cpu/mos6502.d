@@ -223,10 +223,12 @@ class MOS6502
 		auto savedStatus = cpu.status.value;
 		ram.write16(cpu.nmiAddress, 0x1D42); //write interrupt handler address
 		cpu.handleNmi();
-		assert(cpu.popStack() == savedStatus);
-		ushort newPC = cpu.popStack() | (cpu.popStack() << 8);
+		assert(cpu.popStack() == savedStatus); //check status registers
+		ushort previousPC = cpu.popStack() | (cpu.popStack() << 8); //verify pc write
 		assert(cpu.cycles == savedCycles + 7);
 		assert(cpu.pc == 0x1D42);
+        assert(previousPC == savedPC);
+        
     }
 
     void handleIrq()
@@ -237,13 +239,35 @@ class MOS6502
 		pushStack(cast(byte)(this.pc >> 8)); //write PC high byte to stack
 		pushStack(cast(byte)(this.pc));
 		pushStack(this.status.value);
-		auto nmiVectorAddress = Console.ram.read16(this.nmiAddress);
-		this.pc = nmiVectorAddress;
-		this.nmi = true;
+		auto irqVectorAddress = Console.ram.read16(this.irqAddress);
+		this.pc = irqVectorAddress;
 		this.cycles +=7;
     }
-    unittest //TODO
+    unittest
     {
+        //case 1 : interrupt disable bit is not set
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+        cpu.status.i = false;
+        auto ram = Console.ram;
+		auto savedCycles = cpu.cycles;
+		auto savedPC = cpu.pc;
+		auto savedStatus = cpu.status.value;
+		ram.write16(cpu.irqAddress, 0xC296); //write interrupt handler address
+		cpu.handleIrq();
+		assert(cpu.popStack() == savedStatus); //check status registers
+		ushort previousPC = cpu.popStack() | (cpu.popStack() << 8); //verify pc write
+		assert(cpu.cycles == savedCycles + 7);
+		assert(cpu.pc == 0xC296);
+        assert(previousPC == savedPC);
+        //case 2 : interrupt disable bit is not set
+        cpu.status.i = true;
+        savedCycles = cpu.cycles;
+		ram.write16(cpu.irqAddress, 0x1111); //write interrupt handler address
+		cpu.handleIrq();
+		assert(cpu.cycles == savedCycles + 0);
+		assert(cpu.pc == 0xC296);
+        assert(previousPC == savedPC);
     }
 
     ushort delegate() decodeAddressMode(string instruction, ubyte opcode)
