@@ -224,8 +224,8 @@ class MOS6502
 
     void handleNmi()
     {
-		pushStack(cast(byte)(this.pc >> 8)); //write PC high byte to stack
-		pushStack(cast(byte)(this.pc));
+		pushStack(cast(ubyte)(this.pc >> 8)); //write PC high byte to stack
+		pushStack(cast(ubyte)(this.pc));
 		pushStack(this.status.value);
 		auto nmiVectorAddress = Console.ram.read16(this.nmiAddress);
 		this.pc = nmiVectorAddress;
@@ -255,8 +255,8 @@ class MOS6502
 		if(this.status.i)
 			return; //don't do anything if interrupt disable is set
 
-		pushStack(cast(byte)(this.pc >> 8)); //write PC high byte to stack
-		pushStack(cast(byte)(this.pc));
+		pushStack(cast(ubyte)(this.pc >> 8)); //write PC high byte to stack
+		pushStack(cast(ubyte)(this.pc));
 		pushStack(this.status.value);
 		auto irqVectorAddress = Console.ram.read16(this.irqAddress);
 		this.pc = irqVectorAddress;
@@ -279,7 +279,7 @@ class MOS6502
 		assert(cpu.cycles == savedCycles + 7);
 		assert(cpu.pc == 0xC296);
         assert(previousPC == savedPC);
-        //case 2 : interrupt disable bit is not set
+        //case 2 : interrupt disable bit is set
         cpu.status.i = true;
         savedCycles = cpu.cycles;
 		ram.write16(cpu.irqAddress, 0x1111); //write interrupt handler address
@@ -638,6 +638,40 @@ class MOS6502
         assert(cpu.cycles == savedCycles + 0x2);
     }
 
+    //forces an interrupt to be fired. the status register is copied to stack and bit 5 of the stored pc on the stack is set to 1
+    private void BRK()
+    {
+        //the BRK instruction saves the PC at BRK+2 to stack, so increment PC by 1 to skip next byte
+        this.pc++;
+        pushStack(cast(ubyte)(this.pc >> 8)); //write PC high byte to stack
+		pushStack(cast(ubyte)(this.pc));
+        StatusRegister brkStatus = this.status;
+        //set b flag and write to stack
+        brkStatus.b = 1;
+		pushStack(brkStatus.value);
+		auto irqVectorAddress = Console.ram.read16(this.irqAddress);
+		this.pc = irqVectorAddress; //brk handled similarly to irq
+		this.cycles += 7;
+    }
+    unittest
+    {
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+        auto ram = Console.ram;
+		auto savedCycles = cpu.cycles;
+		auto savedPC = cpu.pc;
+		auto savedStatus = cpu.status.value;
+		ram.write16(cpu.irqAddress, 0x1744); //write interrupt handler address
+        //increment PC by 1 to simulate fetch
+        cpu.pc++;
+		cpu.BRK();
+		assert(cpu.popStack() == (savedStatus | 0b10000)); //check status registers
+		ushort previousPC = cpu.popStack() | (cpu.popStack() << 8); //verify pc write
+		assert(cpu.cycles == savedCycles + 7);
+		assert(cpu.pc == 0x1744);
+        assert(previousPC == savedPC + 2);
+    }
+
     //***** Addressing Modes *****//
     // Immediate address mode is the operand is a 1 byte constant following the
     // opcode so read the constant, increment pc by 1 and return it
@@ -991,7 +1025,7 @@ class MOS6502
         immutable ushort stackTopAddress = 0x01FF;
 
         
-        ubyte cycleCountTable[256] = [
+        ubyte[256] cycleCountTable = [
          // 0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F 
          7, 6, 0, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6, // 0
          2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, // 1
@@ -1010,7 +1044,7 @@ class MOS6502
          2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, // E
          2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7 ]; // F 
 
-        ubyte addressModeTable[256] = [
+        ubyte[256] addressModeTable = [
          //  0      1      2      3      4      5      6      7    
          //  8      9      A      B      C      D      E      F    
           0x01,  0xF2,  0x00,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // 0
