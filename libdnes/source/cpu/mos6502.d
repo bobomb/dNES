@@ -463,6 +463,7 @@ class MOS6502
         assert((cycles_end - cycles_start) == 4);
     }
 
+    //If the negative flag is set then add the relative displacement to the program counter to cause a branch to a new location.
     private void BMI()
     {
         this.cycles += 2;
@@ -698,7 +699,7 @@ class MOS6502
         auto cpu = new MOS6502;
         cpu.powerOn();
         auto ram = Console.ram;
-        //case 1 forward offset, o flag clear, jumps page boundary (4 cycles)
+        //case 1 forward offset, v flag clear, jumps page boundary (4 cycles)
         cpu.status.v = 0;
         ram.write(cpu.pc, 0x5D); // argument
         auto savedPC = cpu.pc;
@@ -706,7 +707,7 @@ class MOS6502
         cpu.BVC();
         assert(cpu.pc == savedPC + 0x1 + 0x5D);
         assert(cpu.cycles == savedCycles + 0x4); //branch will cross a page boundary
-        //case 2 forward offset, o flag is set, (2 cycles)
+        //case 2 forward offset, v flag is set, (2 cycles)
         cpu.status.v = 1;
         ram.write(cpu.pc, 0x4D); // argument
         savedPC = cpu.pc;
@@ -714,7 +715,7 @@ class MOS6502
         cpu.BVC();
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
         assert(cpu.cycles == savedCycles + 0x2); //(2 cycles)
-        //case 3 negative offset, o flag is clear (3 cycles)
+        //case 3 negative offset, v flag is clear (3 cycles)
         cpu.status.v = 0;
         ram.write(cpu.pc, 0xF1); // (-15)
         savedPC = cpu.pc;
@@ -722,7 +723,7 @@ class MOS6502
         cpu.BVC();
         assert(cpu.pc == savedPC + 1 - 0xF);
         assert(cpu.cycles == savedCycles + 0x3); //branch doesn't cross page boundary
-        //case 4 negative offset, o flag is set (2 cycles)
+        //case 4 negative offset, v flag is set (2 cycles)
         cpu.status.v = 1;
         ram.write(cpu.pc, 0xF1); // argument
         savedPC = cpu.pc;
@@ -732,6 +733,63 @@ class MOS6502
         assert(cpu.cycles == savedCycles + 0x2);
     }
 
+    //If the overflow flag is set then add the relative displacement to the program counter to cause a branch to a new location.
+    private void BVS()
+    {
+        this.cycles += 2;
+        //Relative only
+        ushort finalAddress = relativeAddressMode();
+        if(status.v)
+        {
+            if((this.pc / 0xFF) == (finalAddress / 0xFF))
+            {
+                this.pc = finalAddress;
+                this.cycles++;
+            }
+            else
+            {
+                this.pc = finalAddress;
+                //goes to a new page
+                this.cycles +=2;
+            }
+        }
+    }
+    unittest
+    {
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+        auto ram = Console.ram;
+        //case 1 forward offset, v flag set, jumps page boundary (4 cycles)
+        cpu.status.v = 1;
+        ram.write(cpu.pc, 0x5C); // argument
+        auto savedPC = cpu.pc;
+        auto savedCycles = cpu.cycles;
+        cpu.BVS();
+        assert(cpu.pc == savedPC + 0x1 + 0x5C);
+        assert(cpu.cycles == savedCycles + 0x4); 
+        //case 2 forward offset, v flag is clear, (2 cycles)
+        cpu.status.v = 0;
+        ram.write(cpu.pc, 0x4C); // argument
+        savedPC = cpu.pc;
+        savedCycles = cpu.cycles;
+        cpu.BVS();
+        assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
+        assert(cpu.cycles == savedCycles + 0x2); //(2 cycles)
+        //case 3 negative offset, v flag is set, (3 cycles)
+        cpu.status.v = 1;
+        ram.write(cpu.pc, 0xF1); // (-15)
+        savedPC = cpu.pc;
+        savedCycles = cpu.cycles;
+        cpu.BVS();
+        assert(cpu.pc == savedPC + 1 - 0xF);
+        assert(cpu.cycles == savedCycles + 0x3);
+        //case 4 negative offset, v flag is clear (1 cycle)
+        cpu.status.v = 0;
+        ram.write(cpu.pc, 0xF1); // argument
+        savedPC = cpu.pc;
+        cpu.BVS();
+        assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
+    }
     //***** Addressing Modes *****//
     // Immediate address mode is the operand is a 1 byte constant following the
     // opcode so read the constant, increment pc by 1 and return it
