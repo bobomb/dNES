@@ -791,7 +791,7 @@ class MOS6502
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
     }
 
-    //Carry clear flag
+    //Clear carry flag
     private void CLC()
     {
         this.status.c = 0;
@@ -805,6 +805,24 @@ class MOS6502
         cpu.status.c = 1;
         cpu.CLC();
         assert(cpu.status.c == 0);
+        assert(cpu.cycles == savedCycles + 2);
+
+    }
+
+    //Clear decimal mode flag
+    private void CLD()
+    {
+        this.status.d = 0;
+        this.cycles += 2;
+    }
+    unittest
+    {
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+        auto savedCycles = cpu.cycles;
+        cpu.status.d = 1;
+        cpu.CLD();
+        assert(cpu.status.d == 0);
         assert(cpu.cycles == savedCycles + 2);
 
     }
