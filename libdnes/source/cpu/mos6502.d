@@ -806,7 +806,6 @@ class MOS6502
         cpu.CLC();
         assert(cpu.status.c == 0);
         assert(cpu.cycles == savedCycles + 2);
-
     }
 
     //Clear decimal mode flag
@@ -824,7 +823,6 @@ class MOS6502
         cpu.CLD();
         assert(cpu.status.d == 0);
         assert(cpu.cycles == savedCycles + 2);
-
     }
 
     //Clear interrupt disable flag
@@ -842,7 +840,6 @@ class MOS6502
         cpu.CLI();
         assert(cpu.status.i == 0);
         assert(cpu.cycles == savedCycles + 2);
-
     }
 
     //Clear overflow flag
@@ -860,7 +857,6 @@ class MOS6502
         cpu.CLV();
         assert(cpu.status.v == 0);
         assert(cpu.cycles == savedCycles + 2);
-
     }
 
     //***** Addressing Modes *****//
