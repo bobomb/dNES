@@ -790,6 +790,25 @@ class MOS6502
         cpu.BVS();
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
     }
+
+    //Carry clear flag
+    private void CLC()
+    {
+        this.status.c = 0;
+        this.cycles += 2;
+    }
+    unittest
+    {
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+        auto savedCycles = cpu.cycles;
+        cpu.status.c = 1;
+        cpu.CLC();
+        assert(cpu.status.c == 0);
+        assert(cpu.cycles == savedCycles + 2);
+
+    }
+
     //***** Addressing Modes *****//
     // Immediate address mode is the operand is a 1 byte constant following the
     // opcode so read the constant, increment pc by 1 and return it
