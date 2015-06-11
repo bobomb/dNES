@@ -827,6 +827,42 @@ class MOS6502
 
     }
 
+    //Clear interrupt disable flag
+    private void CLI()
+    {
+        this.status.i = 0;
+        this.cycles += 2;
+    }
+    unittest
+    {
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+        auto savedCycles = cpu.cycles;
+        cpu.status.i = 1;
+        cpu.CLI();
+        assert(cpu.status.i == 0);
+        assert(cpu.cycles == savedCycles + 2);
+
+    }
+
+    //Clear overflow flag
+    private void CLV()
+    {
+        this.status.v = 0;
+        this.cycles += 2;
+    }
+    unittest
+    {
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+        auto savedCycles = cpu.cycles;
+        cpu.status.v = 1;
+        cpu.CLV();
+        assert(cpu.status.v == 0);
+        assert(cpu.cycles == savedCycles + 2);
+
+    }
+
     //***** Addressing Modes *****//
     // Immediate address mode is the operand is a 1 byte constant following the
     // opcode so read the constant, increment pc by 1 and return it
