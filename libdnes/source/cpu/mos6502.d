@@ -121,7 +121,7 @@ class MOS6502
     // @region unittest decode(ubyte) 
     unittest 
     {
-        import std.file, std.stdio;
+        import std.file;
 
         // Load a test ROM
         auto ROMBytes = cast(ubyte[])read("libdnes/nestest.nes");
@@ -486,8 +486,6 @@ class MOS6502
         Console.ram.write(0x10, 0xFF);
         //indirect indexed with an idex of 7
         address = cpu.indirectIndexedAddressMode(0x7);
-        import std.stdio;
-        writeln(0xFFFE + 7);
         assert(address == cast(ushort)(0xFFFE + 7));
     }
 
