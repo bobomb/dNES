@@ -729,9 +729,7 @@ class MOS6502
     {
         ubyte address = Console.ram.read(this.pc++);
         ubyte offset = decodeIndex(instruction, opcode);
-        ushort finalAddress = address + offset;
-       
-        checkPageCrossed(address, finalAddress);
+        ushort finalAddress = cast(ubyte)(address + offset);
         return finalAddress;
     }
     unittest
@@ -759,8 +757,7 @@ class MOS6502
         //set X register to 5
         cpu.y = 5;
         // example STY will add operand to y register, and return that
-        // FF + 5 = overflow to 0x04
-        assert(cpu.zeroPageAddressMode("LDX", 0xB6) == 0x04);
+        assert(cpu.zeroPageAddressMode("LDX", 0xB6) == 0x15);
         assert(cpu.pc == 0xC003);
     }
     
@@ -871,7 +868,7 @@ class MOS6502
         cpu.y = 5;
         result = cpu.absoluteAddressMode("ADC", 0x79);
         assert(result == 0x7D05);
-        assert(cpu.pc == 0xC002);
+        assert(cpu.pc == 0xC004);
     }
 
     /* absolute indexed address mode reads 16 bytes so increment pc by 2
@@ -1110,7 +1107,7 @@ class MOS6502
         immutable ushort stackTopAddress = 0x01FF;
 
         
-        static immutable ubyte cycleCountTable[256] = [
+        static immutable ubyte[256] cycleCountTable = [
          // 0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F 
          7, 6, 0, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6, // 0
          2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, // 1
@@ -1126,10 +1123,9 @@ class MOS6502
          2, 5, 0, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4, // B
          2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, // C
          2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, // D
-         2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, // E
          2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7 ]; // F 
 
-        static immutable ubyte addressModeTable[256] = [
+        static immutable ubyte[256] addressModeTable= [
          //  0      1      2      3      4      5      6      7    
          //  8      9      A      B      C      D      E      F    
           0x01,  0xF2,  0x00,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // 0
