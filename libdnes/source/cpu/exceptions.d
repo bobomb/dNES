@@ -32,4 +32,18 @@ class InvalidAddressingModeException : Exception
         super(writer.data);
     }    
 }
+
+
+class InvalidAddressIndexException : Exception
+{
+    this(string instruction, ubyte opcode)
+    {
+        auto writer = appender!string();
+        formattedWrite(writer, "Decoded opcode %#x ", opcode);
+        formattedWrite(writer, "as '%s' but was unable to ", instruction);
+        formattedWrite(writer, "determine proper indexed addressing mode index");
+        super(writer.data);
+    }    
+}
+
 // ex: set foldmethod=syntax foldlevel=1 expandtab ts=4 sts=4 expandtab sw=4 filetype=d : 

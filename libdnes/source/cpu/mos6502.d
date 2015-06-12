@@ -13,9 +13,8 @@ import memory;
 
 class MOS6502
 {
-    enum AddressingModeType
+    enum AddressingModeType : ubyte 
     {
-        UNKNOWN     = 0x00,
         IMPLIED     = 0x01,
         IMMEDIATE   = 0x10,
         ACCUMULATOR = 0xA0,
@@ -35,6 +34,7 @@ class MOS6502
     this()
     {
         status = new StatusRegister; 
+        pageBoundaryWasCrossed = false;
     }
 
     // From http://wiki.nesdev.com/w/index.php/CPU_power_up_state
@@ -288,22 +288,90 @@ class MOS6502
 		assert(cpu.pc == 0xC296);
     }
 
-    ushort delegate() decodeAddressMode(string instruction, ubyte opcode)
+    ushort delegate(string,ubyte) decodeAddressMode(string instruction, ubyte opcode)
     {
-        switch (opcode)
+        AddressingModeType addressModeCode = 
+            cast(AddressingModeType)(addressModeTable[opcode]);
+        
+        switch (addressModeCode)
         {
-            case 0x69:
+            case AddressingModeType.IMPLIED:
+                return null;
+            case AddressingModeType.IMMEDIATE:
                 return &(immediateAddressMode);
-            // *** ABSOLUTE ***//
-            case 0x4C: // JMP
-            case 0x6D: // ADC
+            case AddressingModeType.ACCUMULATOR:
+                goto case AddressingModeType.IMPLIED;
+            case AddressingModeType.ZEROPAGE:
+            case AddressingModeType.ZEROPAGE_X:
+            case AddressingModeType.ZEROPAGE_Y:
+                return &(zeroPageAddressMode);
+            case AddressingModeType.RELATIVE:
+                return &(relativeAddressMode);
+            case AddressingModeType.ABSOLUTE:
+            case AddressingModeType.ABSOLUTE_X:
+            case AddressingModeType.ABSOLUTE_Y:
                 return &(absoluteAddressMode);
-            // *** INDIRECT **//
-            case 0x6C: // JMP
+            case AddressingModeType.INDIRECT:
+            case AddressingModeType.INDEXED_INDIRECT:
+            case AddressingModeType.INDIRECT_INDEXED:
                 return &(indirectAddressMode);
             default:
                 throw new InvalidAddressingModeException(instruction, opcode);
         }
+    }
+    unittest 
+    {
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+
+        // Case 1: Implied & Accumulator
+        // Case 2: Immediate
+        // Case 3: Zero Page
+        // Case 4: Absolute
+        // Case 5: Indirect
+        // Case 6: failure
+        try
+        {
+            cpu.decodeAddressMode("KIL", 0x2A); // Invalid opcode
+        }
+        catch (InvalidAddressingModeException e)
+        {} // this exception is expected; suppress it.
+    }
+
+    ubyte decodeIndex(string instruction, ubyte opcode)
+    {
+        ubyte indexType = addressModeTable[opcode] & 0x0F;
+        switch (indexType)
+        {
+            case 0x00:
+                return 0;
+            case 0x01:
+                return x; 
+            case 0x02:
+                return y;
+            default:
+                throw new InvalidAddressIndexException(instruction, opcode);
+        }
+    }
+    unittest
+    {
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+        cpu.x = 0x11;
+        cpu.y = 0x45;
+        // Case 1: Non-indexed
+        assert(cpu.decodeIndex("LDX",0xA6) == 0x00);
+        // Case 2: X-indexed 
+        assert (cpu.decodeIndex("ADC", 0x7D) == cpu.x);
+        // case 3: Y-indexed 
+        assert (cpu.decodeIndex("ADC", 0x79) == cpu.y);
+        //case 4: failure
+        try
+        {
+            cpu.decodeIndex("KIL", 0x2A); // Invalid opcode
+        }
+        catch (InvalidAddressIndexException e)
+        {} // this exception is expected; suppress it.
     }
 
     //***** Instruction Implementation *****//
@@ -311,43 +379,39 @@ class MOS6502
     private void JMP(ubyte opcode)
     {
         auto addressModeFunction = decodeAddressMode("JMP", opcode);
-        ushort finalAddress = 0;
 
-        if (addressModeFunction == &absoluteAddressMode)
-        {
-            this.cycles += 3;
-        }
-        else if (addressModeFunction == &indirectAddressMode)
-        {
-            this.cycles += 5;
-        }
-        finalAddress = addressModeFunction();
-
-        this.pc = finalAddress;
+        this.pc = addressModeFunction("JMP", opcode);
+        this.cycles += cycleCountTable[opcode];
     }
     unittest
     {
+        import std.stdio;
         auto cpu = new MOS6502;
         cpu.powerOn();
         auto ram = Console.ram;
 
-        ram.write(0xC000, 0x4C);     // JMP, absolute addressmode
+        cpu.pc = 0xC000;
+        // Case 1: Absolute addressing
+        ram.write(0xC000, 0x4C);     // JMP, absolute
         ram.write16(0xC001, 0xC005); // argument
-
-        ram.write(0xC005, 0x6C);     // JMP, indirect address
-        ram.write16(0xC006, 0xC00D); // address of address
-        ram.write16(0xC00D, 0xC00F); // final address
 
         cpu.JMP(ram.read(cpu.pc++));
         assert(cpu.pc == 0xC005);
+
+        // Case 2: Indirect addressing, page not boundary
+        ram.write(0xC005, 0x6C);     // JMP, indirect address
+        ram.write16(0xC006, 0xC00C); // address of final address
+        ram.write16(0xC00C, 0xEE00);
+        
         cpu.JMP(ram.read(cpu.pc++));
-        assert(cpu.pc == 0xC00F);
+        assert(cpu.pc == 0xEE00);
     }
 
     private void ADC(ubyte opcode)
     {
         auto addressModeFunction = decodeAddressMode("ADC", opcode);
-        bool bPageBoundaryCrossed = false;
+        auto addressMode     = addressModeTable[opcode];
+
         auto ram = Console.ram;
 
         ushort a; // a = accumulator value
@@ -357,18 +421,22 @@ class MOS6502
         a = this.a;
         c = this.status.c;
 
-        if (addressModeFunction == &(immediateAddressMode)) 
+        if (addressMode == AddressingModeType.IMMEDIATE)
         {
-            m = addressModeFunction();
+            m = addressModeFunction("ADC", opcode);
         }
         else
         {
-            ushort resolvedAddress = addressModeFunction();
-            if ((resolvedAddress & 0x00FF)  == 0x00FF) 
+            if (isIndexedMode(opcode) && 
+                    (addressMode != AddressingModeType.INDIRECT_INDEXED) && 
+                    (addressMode != AddressingModeType.ZEROPAGE_X))
             {
-                bPageBoundaryCrossed = true;
+                if (pageBoundaryWasCrossed) 
+                {
+                    this.cycles++; // pre-add the extra cycle before table lookup
+                }
             }
-            m = ram.read(resolvedAddress);
+            m = ram.read(addressModeFunction("ADC", opcode));
         }
 
         auto result = cast(ushort)(a+m+c);
@@ -404,18 +472,6 @@ class MOS6502
         }
 
         this.cycles += cycleCountTable[opcode];
-        switch (opcode)
-        {
-            case 0x71:
-            case 0x7D: // Absolute,X
-            case 0x79: // Absolute,Y
-                if (bPageBoundaryCrossed) 
-                    this.cycles++;
-                break;
-            default:
-                { } // do nothing
-                break;
-        } 
     }
     unittest
     {
@@ -641,7 +697,7 @@ class MOS6502
     //***** Addressing Modes *****//
     // Immediate address mode is the operand is a 1 byte constant following the
     // opcode so read the constant, increment pc by 1 and return it
-    ushort immediateAddressMode()
+    ushort immediateAddressMode(string instruction = "", ubyte opcode = 0)
     {
         return Console.ram.read(this.pc++);
     }
@@ -657,13 +713,26 @@ class MOS6502
         assert(cpu.pc == 0xC001);
     }
 
-    // zero page address indicates that byte following the operand is an address
-    // from 0x0000 to 0x00FF (256 bytes). in this case we read in the address 
-    // and return it
-    ubyte zeroPageAddressMode()
+    /* zero page address indicates that byte following the operand is an address
+     * from 0x0000 to 0x00FF (256 bytes). in this case we read in the address 
+     * and return it
+     *
+     * zero page index address indicates that byte following the operand is an 
+     * address from 0x0000 to 0x00FF (256 bytes). in this case we read in the 
+     * address then offset it by the value in a specified register (X, Y, etc)
+     * when calling this function you must provide the value to be indexed by
+     * for example an instruction that is STY Operand, Means we will take 
+     * operand, offset it by the value in Y register
+     * and correctly round it and return it as a zero page memory address */
+
+    ushort zeroPageAddressMode(string instruction, ubyte opcode)
     {
         ubyte address = Console.ram.read(this.pc++);
-        return address;
+        ubyte offset = decodeIndex(instruction, opcode);
+        ushort finalAddress = address + offset;
+       
+        checkPageCrossed(address, finalAddress);
+        return finalAddress;
     }
     unittest
     {
@@ -674,51 +743,58 @@ class MOS6502
         // zero page addressing mode will read address stored at cpu.pc which is
         // 0x7D, then return the value stored in ram at 0x007D which should be 
         // 0x55
-        assert(cpu.zeroPageAddressMode() == 0x7D);
+        assert(cpu.zeroPageAddressMode("ADC",0x65) == 0x7D);
         assert(cpu.pc == 0xC001);
-    }
-    
-    // zero page index address indicates that byte following the operand is an 
-    // address from 0x0000 to 0x00FF (256 bytes). in this case we read in the 
-    // address then offset it by the value in a specified register (X, Y, etc)
-    // when calling this function you must provide the value to be indexed by
-    // for example an instruction that is 
-    // STY Operand, Y
-    // Means we will take operand, offset it by the value in Y register
-    // and correctly round it and return it as a zero page memory address
-    ubyte zeroPageIndexedAddressMode(ubyte indexValue)
-    {
-        ubyte address = Console.ram.read(this.pc++);
-        address += indexValue;
-        return address;
-    }
-    unittest
-    {
-        auto cpu = new MOS6502;
-        cpu.powerOn();
-        //pc is 0xC000 after powerOn()
+
         // set ram at PC to a zero page indexed address, indexing y register
         Console.ram.write(cpu.pc, 0xFF);
-        //set Y register to 5
+        //set X register to 5
+        cpu.x = 5;
+        // example STY will add operand to y register, and return that
+        // FF + 5 = overflow to 0x04
+        assert(cpu.zeroPageAddressMode("ADC", 0x75) == 0x04);
+        assert(cpu.pc == 0xC002);
+          // set ram at PC to a zero page indexed address, indexing y register
+        Console.ram.write(cpu.pc, 0x10);
+        //set X register to 5
         cpu.y = 5;
         // example STY will add operand to y register, and return that
         // FF + 5 = overflow to 0x04
-        assert(cpu.zeroPageIndexedAddressMode(cpu.y) == 0x04);
-        assert(cpu.pc == 0xC001);
+        assert(cpu.zeroPageAddressMode("LDX", 0xB6) == 0x04);
+        assert(cpu.pc == 0xC003);
     }
-
-    // for relative address mode we will calculate an adress that is
-    // between -128 to +127 from the PC + 1
-    // used only for branch instructions
-    // first byte after the opcode is the relative offset as a 
-    // signed byte. the offset is calculated from the position after the 
-    // operand so it is in actuality -126 to +129 from where the opcode 
-    // resides
-    ushort relativeAddressMode()
+    
+    /* zero page index address indicates that byte following the operand is an 
+     * address from 0x0000 to 0x00FF (256 bytes). in this case we read in the 
+     * address then offset it by the value in a specified register (X, Y, etc)
+     * when calling this function you must provide the value to be indexed by
+     * for example an instruction that is 
+     * STY Operand, Y
+     * Means we will take operand, offset it by the value in Y register
+     * and correctly round it and return it as a zero page memory address */
+    /*ushort zeroPageIndexedAddressMode(string instruction, ubyte opcode)
+    {
+        ubyte indexValue = decodeIndex(instruction, opcode);
+        ubyte address = Console.ram.read(this.pc++);
+        address += indexValue;
+        return address;
+    } */
+  
+    /* for relative address mode we will calculate an adress that is
+     * between -128 to +127 from the PC + 1
+     * used only for branch instructions
+     * first byte after the opcode is the relative offset as a 
+     * signed byte. the offset is calculated from the position after the 
+     * operand so it is in actuality -126 to +129 from where the opcode 
+     * resides */
+    ushort relativeAddressMode(string instruction = "", ubyte opcode = 0)
     {
 	    byte offset = cast(byte)(Console.ram.read(this.pc++));
-	    int finalAddress = (cast(int)this.pc + offset);
-	    return cast(ushort)(finalAddress);
+	    //int finalAddress = (cast(int)this.pc + offset);
+	    ushort finalAddress = cast(ushort)((this.pc) + offset);
+
+        checkPageCrossed(this.pc, finalAddress);
+        return cast(ushort)(finalAddress);
     }
     unittest
     {
@@ -728,7 +804,7 @@ class MOS6502
         // Case 1 & 2 : Relative Addess forward
         // relative offset will be +1
         Console.ram.write(cpu.pc, 0x01);
-        result = cpu.relativeAddressMode();
+        result = cpu.relativeAddressMode(); // parameters dont matter
         assert(cpu.pc == 0xC001); 
         assert(result == 0xC002);
         //relative offset will be +3
@@ -761,11 +837,15 @@ class MOS6502
     }
 
     //absolute address mode reads 16 bytes so increment pc by 2
-    ushort absoluteAddressMode()
+    ushort absoluteAddressMode(string instruction, ubyte opcode)
     {
-        ushort data = Console.ram.read16(this.pc);
+        ushort address = Console.ram.read16(this.pc);
+        ubyte offset = decodeIndex(instruction, opcode);
+        ushort finalAddress = cast(ushort)(address + offset);
+
+        checkPageCrossed(address, finalAddress);
         this.pc += 0x2;
-        return data;
+        return finalAddress;
     }
     unittest 
     {
@@ -779,14 +859,27 @@ class MOS6502
         // write address 0x7D00 to PC
         Console.ram.write16(cpu.pc, 0x7D00);
 
-        result = cpu.absoluteAddressMode();
+        result = cpu.absoluteAddressMode("ADC", 0x6D);
         assert(result == 0x7D00);
+        assert(cpu.pc == 0xC002);
+
+        // Case 2: Absolute indexed addressing is dead-simple. The argument of the 
+        // in this case is the address stored in the next two bytes, which is added
+        // to third argument which in the index, which is usually X or Y register
+        // write address 0x7D00 to PC
+        Console.ram.write16(cpu.pc, 0x7D00);
+        cpu.y = 5;
+        result = cpu.absoluteAddressMode("ADC", 0x79);
+        assert(result == 0x7D05);
         assert(cpu.pc == 0xC002);
     }
 
-    //absolute indexed address mode reads 16 bytes so increment pc by 2
-    ushort absoluteIndexedAddressMode(ubyte indexValue)
+    /* absolute indexed address mode reads 16 bytes so increment pc by 2
+    ushort absoluteIndexedAddressMode(string instruction, ubyte opcode)
     {
+        ubyte indexType = addressModeTable[opcode] & 0xF;
+        ubyte indexValue = decodeIndex(instruction, opcode);
+
         ushort data = Console.ram.read16(this.pc);
         this.pc += 0x2;
         data += indexValue;
@@ -807,26 +900,17 @@ class MOS6502
         result = cpu.absoluteIndexedAddressMode(cpu.y);
         assert(result == 0x7D05);
         assert(cpu.pc == 0xC002);
-    }
+    } */
 
-    //remember to increment pc by 2 bytes when reading 2 bytes
-    ushort  indirectAddressMode()
+    ushort  indirectAddressMode(string instruction = "", ubyte opcode = 0)
     {
+        import std.stdio;
         ushort effectiveAddress = Console.ram.read16(this.pc); 
-        this.pc += 0x2;
-        ushort returnAddress = 0;
-
-        if ( (effectiveAddress & 0x00FF) == 0x00FF ) 
-        {
-            ubyte low = Console.ram.read(effectiveAddress);
-            ubyte high = Console.ram.read(effectiveAddress & 0xFF00);
-            returnAddress = (high << 8) | low;
-        }
-        else
-        {
-            returnAddress = Console.ram.read16(effectiveAddress);
-        }
-
+        ushort returnAddress = Console.ram.buggyRead16(effectiveAddress); // does not increment this.pc
+        
+        this.pc += 0x2;  // increment program counter for first read16 op
+        writeln(effectiveAddress);
+        writeln(returnAddress);
         return returnAddress;
     }
     unittest 
@@ -837,7 +921,7 @@ class MOS6502
         // Case1: Straightforward indirection.
         // Argument is an address contianing an address.
         Console.ram.write16(cpu.pc, 0x0D10);
-        Console.ram.write16(0xD10, 0x1FFF);
+        Console.ram.write16(0x0D10, 0x1FFF);
         assert(cpu.indirectAddressMode() == 0x1FFF);
         assert(cpu.pc == 0xC002);
 
@@ -970,6 +1054,40 @@ class MOS6502
     {
     }
 
+    private void checkPageCrossed(ushort startingAddress, ushort finalAddress)
+    {
+        ubyte pageOne = (startingAddress >> 8) & 0x00FF;
+        ubyte pageTwo = (finalAddress >> 8) & 0x00FF;
+
+        pageBoundaryWasCrossed = pageBoundaryWasCrossed = (pageOne != pageTwo);
+    }
+    unittest
+    {
+        auto cpu = new MOS6502;
+        assert(cpu.pageBoundaryWasCrossed  == false);
+
+        cpu.checkPageCrossed(0x00FF, 0x0100);
+        assert(cpu.pageBoundaryWasCrossed == true);
+    }
+
+    private static bool isIndexedMode(ubyte opcode)
+    {
+        ubyte addressType = addressModeTable[opcode];
+        ubyte lowerNybble = addressType & 0xF;
+       
+        if (addressType == AddressingModeType.IMMEDIATE) return false;
+
+        return (lowerNybble != 0);
+    }
+    unittest 
+    {
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+
+        assert(isIndexedMode(0x6D) == false); // ADC, Absolute
+        assert(isIndexedMode(0x7D) == true);  // ADC, Absolute,X
+        assert(isIndexedMode(0x79) == true);  // ADC, Absolute, Y
+    }
     private 
     {
         ushort pc; // program counter
@@ -983,6 +1101,7 @@ class MOS6502
         bool irq; //software interrupt request line
 
         StatusRegister status;
+        bool pageBoundaryWasCrossed;
 
         immutable ushort nmiAddress = 0xFFFA;
         immutable ushort resetAddress = 0xFFFC;
@@ -991,7 +1110,7 @@ class MOS6502
         immutable ushort stackTopAddress = 0x01FF;
 
         
-        ubyte cycleCountTable[256] = [
+        static immutable ubyte cycleCountTable[256] = [
          // 0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F 
          7, 6, 0, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6, // 0
          2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, // 1
@@ -1010,7 +1129,7 @@ class MOS6502
          2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, // E
          2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7 ]; // F 
 
-        ubyte addressModeTable[256] = [
+        static immutable ubyte addressModeTable[256] = [
          //  0      1      2      3      4      5      6      7    
          //  8      9      A      B      C      D      E      F    
           0x01,  0xF2,  0x00,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // 0

@@ -10,8 +10,8 @@ import memory.imemory;
 
 class RAM : IMemory
 {
-    ubyte[0x10000] data; // 16KiB addressing range
-
+public 
+{
     this()
     {
         for (int i = 0; i != data.length; ++i) {
@@ -74,7 +74,7 @@ class RAM : IMemory
             }
         }
     }
-    
+
     ubyte read(ushort address)
     { 
         return data[address];
@@ -91,14 +91,12 @@ class RAM : IMemory
         assert(result ==  0xEE);
     }
     
-    //performs a 16 bit read on a memory address
-    //NES is stored little endian so this converts it to
-    //big endian
+    // performs a 16 bit read on a memory address. Low byte is read first, 
+    // high-byte second
     ushort read16(ushort address)
     {
         return ((data[address+1] << 8) | data[address]);
     }
-    
     unittest 
     {
         auto mem = new RAM;
@@ -110,7 +108,45 @@ class RAM : IMemory
         result = mem.read16(0x0);
         assert(result == 0xC000);
     }
-    
+
+    // 6502 has a bug with indirect mode. 
+    // If the argument is $10FF, it will read the lower byte as $FF, and 
+    // then fail to increment the higher byte from $10 to $11, 
+    // resulting in a read from $1000 rather than $1100 when loading the
+    // upper byte
+    ushort buggyRead16(ushort address)
+    {
+        import std.stdio;
+        ushort returnValue = 0;
+        
+        if ((address & 0x00FF) == 0x00FF)  // If at a page boundary..
+        {
+            ubyte low = read(address);
+            ubyte high = read(address & 0xFF00); // wraparound
+            returnValue = ((high << 8) | low);
+        }
+        else
+        {
+            returnValue = read16(address);
+        }
+        return returnValue;
+    }
+    unittest 
+    {
+        import std.stdio;
+        auto mem = new RAM;
+
+        mem.data[0..4] = [ 0x01, 0xC0, 0xFF, 0xEE ];
+        mem.data[0xFF..0x101] = [0xF0, 0x44];
+
+        auto result = mem.buggyRead16(0x1);
+        assert(result == 0xFFC0 );
+
+        result = mem.buggyRead16(0x00FF);
+        assert(result == 0x01F0);
+    }
+
+
     void write(ushort address, ubyte value)
     {
         data[address] = value;
@@ -141,8 +177,6 @@ class RAM : IMemory
         assert(mem.data[0xB00C] == 0xB0);
     }
     
-
-
    
     // Dlang does not automatically convert small int literals to ushort without
     // a cast, which is stupid. Writing an overload to make the API cleaner. -_-
@@ -172,7 +206,13 @@ class RAM : IMemory
         assert(mem.data[0xB00B] == 0x0B);
         assert(mem.data[0xB00C] == 0xB0);
     }
-    
+}    
+
+private
+{
+    ubyte[0x10000] data; // 16KiB addressing range
 }
 
-// ex: set foldmethod=syntax foldlevel=1 expandtab ts=4 sts=4 expandtab sw=4 filetype=d : 
+}
+
+// ex: set foldmethod=syntax foldlevel=2 expandtab ts=4 sts=4 expandtab sw=4 filetype=d : 
