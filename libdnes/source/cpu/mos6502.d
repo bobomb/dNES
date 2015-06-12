@@ -901,13 +901,10 @@ class MOS6502
 
     ushort  indirectAddressMode(string instruction = "", ubyte opcode = 0)
     {
-        import std.stdio;
         ushort effectiveAddress = Console.ram.read16(this.pc); 
         ushort returnAddress = Console.ram.buggyRead16(effectiveAddress); // does not increment this.pc
         
         this.pc += 0x2;  // increment program counter for first read16 op
-        writeln(effectiveAddress);
-        writeln(returnAddress);
         return returnAddress;
     }
     unittest 
