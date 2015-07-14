@@ -31,3 +31,5 @@ Debug/dNES.json
 Debug/dNES.buildlog.html
 Debug/dNES.dep
 libdnes/reference/perfect6502/measure
+*.gcda
+*.gcno

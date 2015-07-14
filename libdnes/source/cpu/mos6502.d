@@ -86,7 +86,7 @@ class MOS6502
     {
         auto cpu = new MOS6502;
         cpu.powerOn();
-        
+
         cpu.status.value = 0x01;
         cpu.a = cpu.x = cpu.y = 55;
         cpu.sp = 0xF4;
@@ -121,13 +121,13 @@ class MOS6502
     unittest
     {
         auto cpu = new MOS6502;
-        
+
         assert(cpu.cycleCount() == 0);
 
         cpu.cycles = 6543;
         assert(cpu.cycleCount == 6543);
     }
-   
+
     void delegate(ushort) decode(ubyte opcode)
     {
         switch (opcode)
@@ -200,7 +200,7 @@ class MOS6502
     {
         //TODO
     }
-    
+
     void handleReset()
     {
 		auto resetVectorAddress = Console.ram.read16(this.resetAddress);
@@ -247,7 +247,7 @@ class MOS6502
 		assert(cpu.cycles == savedCycles + 7);
 		assert(cpu.pc == 0x1D42);
         assert(previousPC == savedPC);
-        
+
     }
 
     void handleIrq()
@@ -292,7 +292,7 @@ class MOS6502
     {
         AddressingModeType addressModeCode = 
             cast(AddressingModeType)(addressModeTable[opcode]);
-        
+
         switch (addressModeCode)
         {
             case AddressingModeType.IMPLIED:
@@ -402,7 +402,7 @@ class MOS6502
         ram.write(0xC005, 0x6C);     // JMP, indirect address
         ram.write16(0xC006, 0xC00C); // address of final address
         ram.write16(0xC00C, 0xEE00);
-        
+
         cpu.JMP(ram.read(cpu.pc++));
         assert(cpu.pc == 0xEE00);
     }
@@ -475,14 +475,12 @@ class MOS6502
     }
     unittest
     {
-        import std.stdio;
-
         auto cpu = new MOS6502;
         cpu.powerOn();
         assert(cpu.a == 0);
         auto ram = Console.ram;
-        auto cycles_start = cpu.cycles;
-        auto cycles_end = cpu.cycles;
+        ulong cycles_start = 0;
+        ulong cycles_end = 0;
 
         // Case 1: Immediate 
         cycles_start = cpu.cycles;
@@ -495,7 +493,7 @@ class MOS6502
         cycles_end  = cpu.cycles; // get cycle count
         assert(cpu.a == 0x60);    // 0x20 + 0x40 = 0x60
         assert((cycles_end - cycles_start) == 2); // verify cycles taken 
-       
+
         // Trigger overflow
         ram.write(cpu.pc, 0xA0);
         cpu.ADC(0x69);
@@ -517,6 +515,63 @@ class MOS6502
         cycles_end  = cpu.cycles;
         assert(cpu.a == 0x7D);
         assert((cycles_end - cycles_start) == 4);
+    }
+
+    private void AND(ubyte opcode)
+    {
+        auto addressModeFunction = decodeAddressMode("AND", opcode);
+        auto addressMode         = addressModeTable[opcode];
+
+        auto ram = Console.ram;
+        ubyte operand;
+
+        if (addressMode == AddressingModeType.IMMEDIATE)
+        {
+            operand = cast(ubyte)(addressModeFunction("ADC", opcode));
+        }
+
+        this.a = (this.a & operand);
+        this.status.z = (this.a == 0   ? 1 : 0);
+        this.status.n = (this.a >= 128 ? 1 : 0);
+        this.cycles += cycleCountTable[opcode];
+    }
+    unittest
+    {
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+        assert(cpu.a == 0);
+        auto ram = Console.ram;
+        ulong cycles_start = 0;
+        ulong cycles_end = 0;
+
+        // Case 1: Immediate
+        uint expected_cycles = 2;
+        ubyte expected_result;
+
+        cycles_start = cpu.cycles; 
+        cpu.pc = 0x0101;
+
+        // iterate through all possible register/memory values and test them
+        for (ushort op1 = 0; op1 < 256; op1++) { // operand1
+            for (ushort op2 = 0; op2 < 256; op2++) { // operand 2
+                cpu.status.z = 0;
+                cpu.status.n = 0;
+                cpu.a = cast(ubyte)op1;
+                ram.write(cpu.pc, cast(ubyte)op2);
+
+                cycles_start = cpu.cycles;
+
+                cpu.AND(0x29); 
+                cycles_end = cpu.cycles;
+                expected_result = cast(ubyte)op1 & cast(ubyte)op2;
+
+                //writef("0b%.8b & 0b%.8b = 0b%.8b\n", op1, op2, expected_result);
+                assert((cycles_end - cycles_start) == expected_cycles);
+                assert(cpu.a == expected_result);
+                assert(cpu.a == 0  ? cpu.status.z == 1 : cpu.status.z == 0);
+                assert(cpu.a >= 128 ? cpu.status.n == 1 : cpu.status.n == 0);
+            }
+        } 
     }
 
     private void BMI()
@@ -760,7 +815,7 @@ class MOS6502
         assert(cpu.zeroPageAddressMode("LDX", 0xB6) == 0x15);
         assert(cpu.pc == 0xC003);
     }
-    
+
     /* zero page index address indicates that byte following the operand is an 
      * address from 0x0000 to 0x00FF (256 bytes). in this case we read in the 
      * address then offset it by the value in a specified register (X, Y, etc)
@@ -776,7 +831,7 @@ class MOS6502
         address += indexValue;
         return address;
     } */
-  
+
     /* for relative address mode we will calculate an adress that is
      * between -128 to +127 from the PC + 1
      * used only for branch instructions
@@ -903,7 +958,7 @@ class MOS6502
     {
         ushort effectiveAddress = Console.ram.read16(this.pc); 
         ushort returnAddress = Console.ram.buggyRead16(effectiveAddress); // does not increment this.pc
-        
+
         this.pc += 0x2;  // increment program counter for first read16 op
         return returnAddress;
     }
@@ -929,7 +984,7 @@ class MOS6502
         // Place the high and low bytes of the operand in the proper places;
         Console.ram.write(0x10FF, 0x55); // low byte
         Console.ram.write(0x1000, 0x7D); // misplaced high byte
-        
+
         // Set up the program counter to read from $10FF and trigger the "bug"
         Console.ram.write16(cpu.pc, 0x10FF);
 
@@ -1068,7 +1123,7 @@ class MOS6502
     {
         ubyte addressType = addressModeTable[opcode];
         ubyte lowerNybble = addressType & 0xF;
-       
+
         if (addressType == AddressingModeType.IMMEDIATE) return false;
 
         return (lowerNybble != 0);
@@ -1103,7 +1158,7 @@ class MOS6502
         immutable ushort stackBaseAddress = 0x0100;
         immutable ushort stackTopAddress = 0x01FF;
 
-        
+
         static immutable ubyte[256] cycleCountTable = [
          // 0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F 
          7, 6, 0, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6, // 0
