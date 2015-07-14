@@ -1,2 +1,8 @@
 language: d
-d: dmd
+d: 
+  - dmd
+  - gdc
+  - ldc
+os:
+  - linux
+  - osx
