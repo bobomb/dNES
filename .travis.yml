@@ -6,3 +6,8 @@ d:
 os:
   - linux
   - osx
+
+matrix:
+  allow_failures:
+    - os: osx
+    - d:  ldc
