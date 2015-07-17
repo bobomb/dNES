@@ -128,14 +128,14 @@ class MOS6502
         assert(cpu.cycleCount == 6543);
     }
    
-    void delegate(ushort) decode(ubyte opcode)
+    void delegate(ubyte) decode(ubyte opcode)
     {
         switch (opcode)
         {
             // JMP
             case 0x4C:
             case 0x6C:
-                return cast(void delegate(ushort))(&JMP);
+                return &JMP;
             // ADC
             case 0x69:
             case 0x65:
@@ -145,7 +145,11 @@ class MOS6502
             case 0x79:
             case 0x61:
             case 0x71:
-                return cast(void delegate(ushort))(&ADC);
+                return &ADC;
+			case 0x78:
+				return &CLI;
+			case 0xEA:
+				return &NOP;
             default:
                 throw new InvalidOpcodeException(opcode);
         }
@@ -169,7 +173,7 @@ class MOS6502
         }
 
         auto resultFunc = cpu.decode(cpu.fetch());
-        void delegate(ushort) expectedFunc = cast(void delegate(ushort))&(cpu.JMP);
+        void delegate(ubyte) expectedFunc = &(cpu.JMP);
         assert(resultFunc == expectedFunc);
     }
 
@@ -198,7 +202,19 @@ class MOS6502
     }
     unittest
     {
-        //TODO
+        auto cpu = new MOS6502;
+		auto savedCycles = cpu.cycles;
+		auto ram = Console.ram;
+		//Check if RST is handled
+		cpu.setReset();
+		//set reset vector memory
+		
+		ram.write16(cpu.resetAddress, 0x00); //write address 00 to reset vector
+		ram.write(0x00, 0xEA); //write  NOP instruction to address 0x00
+		cpu.cycle();
+		assert(cpu.rst == false);
+		
+		assert(cpu.cycles == savedCycles + 7 + 2); //2 cycles for NOP
     }
     
     void handleReset()
@@ -519,8 +535,12 @@ class MOS6502
         assert((cycles_end - cycles_start) == 4);
     }
 
+	private void NOP(ubyte opcode)
+	{
+		this.cycles += 2;
+	}
     //If the negative flag is set then add the relative displacement to the program counter to cause a branch to a new location.
-    private void BMI()
+    private void BMI(ubyte opcode)
     {
         this.cycles += 2;
         //Relative only
@@ -550,7 +570,7 @@ class MOS6502
         ram.write(cpu.pc, 0x4C); // argument
         auto savedPC = cpu.pc;
         auto savedCycles = cpu.cycles;
-        cpu.BMI();
+        cpu.BMI(0x30);
         assert(cpu.pc == savedPC + 0x1 + 0x4C);
         assert(cpu.cycles == savedCycles + 0x4); 
         //case 2 forward offset, n flag is clear, (2 cycles)
@@ -558,7 +578,7 @@ class MOS6502
         ram.write(cpu.pc, 0x4C); // argument
         savedPC = cpu.pc;
         savedCycles = cpu.cycles;
-        cpu.BMI();
+        cpu.BMI(0x30);
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
         assert(cpu.cycles == savedCycles + 0x2); //(2 cycles)
         //case 3 negative offset, n flag is set, (3 cycles)
@@ -566,19 +586,19 @@ class MOS6502
         ram.write(cpu.pc, 0xF1); // (-15)
         savedPC = cpu.pc;
         savedCycles = cpu.cycles;
-        cpu.BMI();
+        cpu.BMI(0x30);
         assert(cpu.pc == savedPC + 1 - 0xF);
         assert(cpu.cycles == savedCycles + 0x3);
         //case 4 negative offset, n flag is clear (1 cycle)
         cpu.status.n = 0;
         ram.write(cpu.pc, 0xF1); // argument
         savedPC = cpu.pc;
-        cpu.BMI();
+        cpu.BMI(0x30);
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
     }
 
     //If the zero flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
-    private void BNE()
+    private void BNE(ubyte opcode)
     {
         this.cycles += 2;
         //Relative only
@@ -608,7 +628,7 @@ class MOS6502
         ram.write(cpu.pc, 0x4D); // argument
         auto savedPC = cpu.pc;
         auto savedCycles = cpu.cycles;
-        cpu.BNE();
+        cpu.BNE(0xD0);
         assert(cpu.pc == savedPC + 0x1 + 0x4D);
         assert(cpu.cycles == savedCycles + 0x4); //branch will cross a page boundary
         //case 2 forward offset, z flag is set, (2 cycles)
@@ -616,7 +636,7 @@ class MOS6502
         ram.write(cpu.pc, 0x4D); // argument
         savedPC = cpu.pc;
         savedCycles = cpu.cycles;
-        cpu.BNE();
+        cpu.BNE(0xD0);
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
         assert(cpu.cycles == savedCycles + 0x2); //(2 cycles)
         //case 3 negative offset, z flag is clear (3 cycles)
@@ -624,19 +644,19 @@ class MOS6502
         ram.write(cpu.pc, 0xF1); // (-15)
         savedPC = cpu.pc;
         savedCycles = cpu.cycles;
-        cpu.BNE();
+        cpu.BNE(0xD0);
         assert(cpu.pc == savedPC + 1 - 0xF);
         assert(cpu.cycles == savedCycles + 0x3); //branch doesn't cross page boundary
         //case 4 negative offset, z flag is set (1 cycle)
         cpu.status.z = 1;
         ram.write(cpu.pc, 0xF1); // argument
         savedPC = cpu.pc;
-        cpu.BNE();
+        cpu.BNE(0xD0);
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
     }
 
     //If the negative flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
-    private void BPL()
+    private void BPL(ubyte opcode)
     {
         this.cycles += 2;
         //Relative only
@@ -666,7 +686,7 @@ class MOS6502
         ram.write(cpu.pc, 0x4D); // argument
         auto savedPC = cpu.pc;
         auto savedCycles = cpu.cycles;
-        cpu.BPL();
+        cpu.BPL(0x10);
         assert(cpu.pc == savedPC + 0x1 + 0x4D);
         assert(cpu.cycles == savedCycles + 0x4); //branch will cross a page boundary
         //case 2 forward offset, n flag is set, (2 cycles)
@@ -674,7 +694,7 @@ class MOS6502
         ram.write(cpu.pc, 0x4D); // argument
         savedPC = cpu.pc;
         savedCycles = cpu.cycles;
-        cpu.BPL();
+        cpu.BPL(0x10);
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
         assert(cpu.cycles == savedCycles + 0x2); //(2 cycles)
         //case 3 negative offset, n flag is clear (3 cycles)
@@ -682,7 +702,7 @@ class MOS6502
         ram.write(cpu.pc, 0xF1); // (-15)
         savedPC = cpu.pc;
         savedCycles = cpu.cycles;
-        cpu.BPL();
+        cpu.BPL(0x10);
         assert(cpu.pc == savedPC + 1 - 0xF);
         assert(cpu.cycles == savedCycles + 0x3); //branch doesn't cross page boundary
         //case 4 negative offset, n flag is set (2 cycles)
@@ -690,13 +710,13 @@ class MOS6502
         ram.write(cpu.pc, 0xF1); // argument
         savedPC = cpu.pc;
         savedCycles = cpu.cycles;
-        cpu.BPL();
+        cpu.BPL(0x10);
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
         assert(cpu.cycles == savedCycles + 0x2);
     }
 
     //forces an interrupt to be fired. the status register is copied to stack and bit 5 of the stored pc on the stack is set to 1
-    private void BRK()
+    private void BRK(ubyte opcode)
     {
         //the BRK instruction saves the PC at BRK+2 to stack, so increment PC by 1 to skip next byte
         this.pc++;
@@ -721,7 +741,7 @@ class MOS6502
 		ram.write16(cpu.irqAddress, 0x1744); //write interrupt handler address
         //increment PC by 1 to simulate fetch
         cpu.pc++;
-		cpu.BRK();
+		cpu.BRK(0);
 		assert(cpu.popStack() == (savedStatus | 0b10000)); //check status registers
 		ushort previousPC = cpu.popStack() | (cpu.popStack() << 8); //verify pc write
 		assert(cpu.cycles == savedCycles + 7);
@@ -730,7 +750,7 @@ class MOS6502
     }
 
     //If the overflow flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
-    private void BVC()
+    private void BVC(ubyte opcode)
     {
         this.cycles += 2;
         //Relative only
@@ -760,7 +780,7 @@ class MOS6502
         ram.write(cpu.pc, 0x5D); // argument
         auto savedPC = cpu.pc;
         auto savedCycles = cpu.cycles;
-        cpu.BVC();
+        cpu.BVC(0x50);
         assert(cpu.pc == savedPC + 0x1 + 0x5D);
         assert(cpu.cycles == savedCycles + 0x4); //branch will cross a page boundary
         //case 2 forward offset, v flag is set, (2 cycles)
@@ -768,7 +788,7 @@ class MOS6502
         ram.write(cpu.pc, 0x4D); // argument
         savedPC = cpu.pc;
         savedCycles = cpu.cycles;
-        cpu.BVC();
+        cpu.BVC(0x50);
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
         assert(cpu.cycles == savedCycles + 0x2); //(2 cycles)
         //case 3 negative offset, v flag is clear (3 cycles)
@@ -776,7 +796,7 @@ class MOS6502
         ram.write(cpu.pc, 0xF1); // (-15)
         savedPC = cpu.pc;
         savedCycles = cpu.cycles;
-        cpu.BVC();
+        cpu.BVC(0x50);
         assert(cpu.pc == savedPC + 1 - 0xF);
         assert(cpu.cycles == savedCycles + 0x3); //branch doesn't cross page boundary
         //case 4 negative offset, v flag is set (2 cycles)
@@ -784,13 +804,13 @@ class MOS6502
         ram.write(cpu.pc, 0xF1); // argument
         savedPC = cpu.pc;
         savedCycles = cpu.cycles;
-        cpu.BVC();
+        cpu.BVC(0x50);
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
         assert(cpu.cycles == savedCycles + 0x2);
     }
 
     //If the overflow flag is set then add the relative displacement to the program counter to cause a branch to a new location.
-    private void BVS()
+    private void BVS(ubyte opcode)
     {
         this.cycles += 2;
         //Relative only
@@ -820,7 +840,7 @@ class MOS6502
         ram.write(cpu.pc, 0x5C); // argument
         auto savedPC = cpu.pc;
         auto savedCycles = cpu.cycles;
-        cpu.BVS();
+        cpu.BVS(0x70);
         assert(cpu.pc == savedPC + 0x1 + 0x5C);
         assert(cpu.cycles == savedCycles + 0x4); 
         //case 2 forward offset, v flag is clear, (2 cycles)
@@ -828,7 +848,7 @@ class MOS6502
         ram.write(cpu.pc, 0x4C); // argument
         savedPC = cpu.pc;
         savedCycles = cpu.cycles;
-        cpu.BVS();
+        cpu.BVS(0x70);
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
         assert(cpu.cycles == savedCycles + 0x2); //(2 cycles)
         //case 3 negative offset, v flag is set, (3 cycles)
@@ -836,19 +856,19 @@ class MOS6502
         ram.write(cpu.pc, 0xF1); // (-15)
         savedPC = cpu.pc;
         savedCycles = cpu.cycles;
-        cpu.BVS();
+        cpu.BVS(0x70);
         assert(cpu.pc == savedPC + 1 - 0xF);
         assert(cpu.cycles == savedCycles + 0x3);
         //case 4 negative offset, v flag is clear (1 cycle)
         cpu.status.v = 0;
         ram.write(cpu.pc, 0xF1); // argument
         savedPC = cpu.pc;
-        cpu.BVS();
+        cpu.BVS(0x70);
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
     }
 
     //Clear carry flag
-    private void CLC()
+    private void CLC(ubyte opcode)
     {
         this.status.c = 0;
         this.cycles += 2;
@@ -859,13 +879,13 @@ class MOS6502
         cpu.powerOn();
         auto savedCycles = cpu.cycles;
         cpu.status.c = 1;
-        cpu.CLC();
+        cpu.CLC(0x18);
         assert(cpu.status.c == 0);
         assert(cpu.cycles == savedCycles + 2);
     }
 
     //Clear decimal mode flag
-    private void CLD()
+    private void CLD(ubyte opcode)
     {
         this.status.d = 0;
         this.cycles += 2;
@@ -876,13 +896,13 @@ class MOS6502
         cpu.powerOn();
         auto savedCycles = cpu.cycles;
         cpu.status.d = 1;
-        cpu.CLD();
+        cpu.CLD(0xD8);
         assert(cpu.status.d == 0);
         assert(cpu.cycles == savedCycles + 2);
     }
 
     //Clear interrupt disable flag
-    private void CLI()
+    private void CLI(ubyte opcode)
     {
         this.status.i = 0;
         this.cycles += 2;
@@ -893,13 +913,13 @@ class MOS6502
         cpu.powerOn();
         auto savedCycles = cpu.cycles;
         cpu.status.i = 1;
-        cpu.CLI();
+        cpu.CLI(0x78);
         assert(cpu.status.i == 0);
         assert(cpu.cycles == savedCycles + 2);
     }
 
     //Clear overflow flag
-    private void CLV()
+    private void CLV(ubyte opcode)
     {
         this.status.v = 0;
         this.cycles += 2;
@@ -910,7 +930,7 @@ class MOS6502
         cpu.powerOn();
         auto savedCycles = cpu.cycles;
         cpu.status.v = 1;
-        cpu.CLV();
+        cpu.CLV(0xB8);
         assert(cpu.status.v == 0);
         assert(cpu.cycles == savedCycles + 2);
     }
