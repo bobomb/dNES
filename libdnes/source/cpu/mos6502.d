@@ -147,6 +147,8 @@ class MOS6502
                 return &ADC;
 			case 0x78:
 				return &CLI;
+            case 0x88:
+                return &DEY;
             case 0xCA:
                 return &DEX;
 			case 0xEA:
@@ -992,7 +994,6 @@ class MOS6502
     }
 
     //Decrements the X register by 1
-    //TODO create a testandsetN, testandsetZ helper functions
     private void DEX(ubyte opcode)
     {
         this.x--;
@@ -1027,6 +1028,40 @@ class MOS6502
         assert(cpu.cycles == savedCycles + 2);
     }
 
+    //Decrements the Y register by 1
+    private void DEY(ubyte opcode)
+    {
+        this.y--;
+        checkAndSetNegative(this.y);
+        checkAndSetZero(this.y);
+        this.cycles += cycleCountTable[opcode];
+    }
+    unittest //0x88, 1 byte, 2 cycles
+    {
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+        auto savedCycles = cpu.cycles;
+        //case 1, y register is 0 and decremented to negative value
+        cpu.y = 0;
+        cpu.DEY(0x88);
+        assert(cpu.status.n == 1);
+        assert(cpu.status.z == 0);
+        assert(cpu.cycles == savedCycles + 2);
+        //case 2, y register is 1 and decremented to zero
+        savedCycles = cpu.cycles;
+        cpu.y = 0;
+        cpu.DEY(0x88);
+        assert(cpu.status.n == 1);
+        assert(cpu.status.z == 0);
+        assert(cpu.cycles == savedCycles + 2);
+        //case 3, y register is positive and decremented to positive value
+        savedCycles = cpu.cycles;
+        cpu.y = 45;
+        cpu.DEY(0x88);
+        assert(cpu.status.n == 0);
+        assert(cpu.status.z == 0);
+        assert(cpu.cycles == savedCycles + 2);
+    }
     //***** Addressing Modes *****//
     // Immediate address mode is the operand is a 1 byte constant following the
     // opcode so read the constant, increment pc by 1 and return it
