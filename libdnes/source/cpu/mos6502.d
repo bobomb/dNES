@@ -989,6 +989,42 @@ class MOS6502
         assert(cpu.cycles == savedCycles + 2);
     }
 
+    //Decrements the X register by 1
+    //TODO create a testandsetN, testandsetZ helper functions
+    private void DEX(ubyte opcode)
+    {
+        this.x--;
+        checkAndSetNegative(this.x);
+        checkAndSetZero(this.x);
+        this.cycles += cycleCountTable[opcode];
+    }
+    unittest //0xCA, 1 byte, 2 cycles
+    {
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+        auto savedCycles = cpu.cycles;
+        //case 1, x register is 0 and decremented to negative value
+        cpu.x = 0;
+        cpu.DEX(0xCA);
+        assert(cpu.status.n == 1);
+        assert(cpu.status.z == 0);
+        assert(cpu.cycles == savedCycles + 2);
+        //case 2, x register is 1 and decremented to zero
+        savedCycles = cpu.cycles;
+        cpu.x = 0;
+        cpu.DEX(0xCA);
+        assert(cpu.status.n == 1);
+        assert(cpu.status.z == 0);
+        assert(cpu.cycles == savedCycles + 2);
+        //case 3, x register is positive and decremented to positive value
+        savedCycles = cpu.cycles;
+        cpu.x = 10;
+        cpu.DEX(0xCA);
+        assert(cpu.status.n == 0);
+        assert(cpu.status.z == 0);
+        assert(cpu.cycles == savedCycles + 2);
+    }
+
     //***** Addressing Modes *****//
     // Immediate address mode is the operand is a 1 byte constant following the
     // opcode so read the constant, increment pc by 1 and return it
@@ -1382,6 +1418,45 @@ class MOS6502
         assert(isIndexedMode(0x6D) == false); // ADC, Absolute
         assert(isIndexedMode(0x7D) == true);  // ADC, Absolute,X
         assert(isIndexedMode(0x79) == true);  // ADC, Absolute, Y
+    }
+
+    //checks the value to see if we need to set the negative flag 
+    //by checking bit 7
+    private void checkAndSetNegative(byte value)
+    {
+        if(value & 0x80) //if bit 7 is set then negative flag is set
+            this.status.n = 1;
+        else
+            this.status.n = 0;
+    }
+    unittest
+    {
+        auto cpu = new MOS6502;
+        cpu.checkAndSetNegative(5);
+        assert(cpu.status.n == 0);
+        cpu.checkAndSetNegative(-5);
+        assert(cpu.status.n == 1);
+        cpu.checkAndSetNegative(45);
+        assert(cpu.status.n == 0);
+    }
+
+    //checks the value to see if it's zero and sets zero flag appropriately
+    private void checkAndSetZero(byte value)
+    {
+        if(value == 0 )
+            this.status.z = 1;
+        else
+            this.status.z = 0;
+    }
+    unittest
+    {
+        auto cpu = new MOS6502;
+        cpu.checkAndSetZero(5);
+        assert(cpu.status.z == 0);
+        cpu.checkAndSetZero(-5);
+        assert(cpu.status.z == 0);
+        cpu.checkAndSetZero(0);
+        assert(cpu.status.z == 1);
     }
     private 
     {
