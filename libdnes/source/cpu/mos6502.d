@@ -147,6 +147,8 @@ class MOS6502
                 return &ADC;
 			case 0x78:
 				return &CLI;
+            case 0xCA:
+                return &DEX;
 			case 0xEA:
 				return &NOP;
             default:
