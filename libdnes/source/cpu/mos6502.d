@@ -1357,6 +1357,12 @@ class MOS6502
 
         cpu.checkPageCrossed(0x00FF, 0x0100);
         assert(cpu.pageBoundaryWasCrossed == true);
+        cpu.checkPageCrossed(0x00FF, 0x00FF);
+        assert(cpu.pageBoundaryWasCrossed  == false);
+        cpu.checkPageCrossed(0x0000, 0x00FF);
+        assert(cpu.pageBoundaryWasCrossed  == false);
+        cpu.checkPageCrossed(0x0000, 0x0100);
+        assert(cpu.pageBoundaryWasCrossed  == true);
     }
 
     private static bool isIndexedMode(ubyte opcode)
