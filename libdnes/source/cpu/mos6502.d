@@ -1089,19 +1089,37 @@ class MOS6502
         this.a = cast(ubyte)(a ^ m);
         checkAndSetZero(this.a);
         checkAndSetNegative(this.a);
+        this.cycles += cycleCountTable[opcode];
     }
     /*
-        Immediate 0x49
-        Zero Page 0x45
-        Zero Page,X 0x55
-        Absolute 0x4D
-        Absolute,X 0x5D (+1 if page crossed)
-        Absolute,Y 0x59 (+1 if page crossed)
-        (Indirect,X) 0x41
-        (Indirect),Y 0x51 (+1 if page crossed)
+        Immediate 0x49 2
+        Zero Page 0x45 3
+        Zero Page,X 0x55 4
+        Absolute 0x4D 4
+        Absolute,X 0x5D 4(+1 if page crossed)
+        Absolute,Y 0x59 4(+1 if page crossed)
+        (Indirect,X) 0x41 6
+        (Indirect),Y 0x51 5(+1 if page crossed)
     */
     unittest //TODO
     {
+        //verify all properties in imediate mode (final value of a, zero/negative flags, cycles)
+        //then for all subsequent modes just verify the final value of a and cycles
+        // 0xF ^ 0xB = 4 (z = 0, n = 0)
+        // 0xF ^ 0xF0 = 0xFF (z = 0, n =1)
+        // 0xF ^ 0xF = 0 (z = 1, n = 0)
+        auto cpu = new MOS6502;
+        auto ram = Console.ram;
+        cpu.powerOn();
+        auto savedCycles = cpu.cycles;
+        cpu.a = 0xF;
+        ram.write(cpu.pc, 0xB);
+        cpu.EOR(0x49); //EOR immediate
+        assert(cpu.a == 4);
+        assert(cpu.status.z == 0);
+        assert(cpu.status.n == 0);
+        assert(cpu.cycles == savedCycles + 2);
+        
     }
     //***** Addressing Modes *****//
     // Immediate address mode is the operand is a 1 byte constant following the
