@@ -470,16 +470,10 @@ class MOS6502
             this.a = cast(ubyte)(result);
             this.status.c = 0;
         }
+        
+        checkAndSetZero(this.a);
 
-        if (this.a == 0)
-            this.status.z = 1;
-        else
-            this.status.z = 0;
-
-        if ((this.a & 0b1000_0000) == 0b1000_0000) 
-            this.status.n = 1; 
-        else
-            this.status.n = 0;
+        checkAndSetNegative(this.a);
 
         if (((this.a^m) & 0x80) == 0 && ((a^this.a) & 0x80) != 0)
         {
@@ -1061,6 +1055,53 @@ class MOS6502
         assert(cpu.status.n == 0);
         assert(cpu.status.z == 0);
         assert(cpu.cycles == savedCycles + 2);
+    }
+
+    //An exclusive OR is performed, bit by bit, on the accumulator contents using the contents of a byte of memory.
+    private void EOR(ubyte opcode)
+    {
+        auto addressModeFunction = decodeAddressMode("EOR", opcode);
+        auto addressMode     = addressModeTable[opcode];
+
+        auto ram = Console.ram;
+
+        ushort a = this.a; // a = accumulator value
+        ushort m; // m = operand
+
+        if (addressMode == AddressingModeType.IMMEDIATE)
+        {
+            m = addressModeFunction("EOR", opcode);
+        }
+        else
+        {
+            if (isIndexedMode(opcode) && 
+                (addressMode != AddressingModeType.INDIRECT_INDEXED) && 
+                (addressMode != AddressingModeType.ZEROPAGE_X))
+            {
+                if (pageBoundaryWasCrossed) 
+                {
+                    this.cycles++; // pre-add the extra cycle before table lookup
+                }
+            }
+            m = ram.read(addressModeFunction("EOR", opcode));
+        }
+
+        this.a = cast(ubyte)(a ^ m);
+        checkAndSetZero(this.a);
+        checkAndSetNegative(this.a);
+    }
+    /*
+        Immediate 0x49
+        Zero Page 0x45
+        Zero Page,X 0x55
+        Absolute 0x4D
+        Absolute,X 0x5D (+1 if page crossed)
+        Absolute,Y 0x59 (+1 if page crossed)
+        (Indirect,X) 0x41
+        (Indirect),Y 0x51 (+1 if page crossed)
+    */
+    unittest //TODO
+    {
     }
     //***** Addressing Modes *****//
     // Immediate address mode is the operand is a 1 byte constant following the
