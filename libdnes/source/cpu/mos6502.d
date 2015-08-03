@@ -1138,6 +1138,37 @@ class MOS6502
         assert(cpu.status.z == 1);
         assert(cpu.status.n == 0);
         assert(cpu.cycles == savedCycles + 2);
+        //Case 4, zero page mode no flags set
+        savedCycles = cpu.cycles;
+        cpu.a = 0xF;
+        ram.write(cpu.pc, 0); //write address 0 to offset to zero page address 0
+        ram.write(0, 0xB); //write to zero page address 0
+        cpu.EOR(0x45); //EOR zero page
+        assert(cpu.a == 4);
+        assert(cpu.status.z == 0);
+        assert(cpu.status.n == 0);
+        assert(cpu.cycles == savedCycles + 3);
+        //Case 5, zero page indexed no flags set
+        savedCycles = cpu.cycles;
+        cpu.a = 0xF;
+        ram.write(cpu.pc, 2); //write address 2 to offset to zero page address 0
+        cpu.x = 4; //zero page address offset of 4
+        ram.write(2+4, 0xB); //write to zero page address 2 + 4
+        cpu.EOR(0x55); //EOR zero page indexed
+        assert(cpu.a == 4);
+        assert(cpu.status.z == 0);
+        assert(cpu.status.n == 0);
+        assert(cpu.cycles == savedCycles + 4);
+        //Case 6, absolute zero flag set
+        savedCycles = cpu.cycles;
+        cpu.a = 0xF;
+        ram.write16(cpu.pc, 0x1234); //write address 0x1234 to PC
+        ram.write(0x1234, 0xF); //write operand m to address 0x1234
+        cpu.EOR(0x4D); //EOR absolute
+        assert(cpu.a == 0);
+        assert(cpu.status.z == 1);
+        assert(cpu.status.n == 0);
+        assert(cpu.cycles == savedCycles + 4);
     }
     //***** Addressing Modes *****//
     // Immediate address mode is the operand is a 1 byte constant following the
