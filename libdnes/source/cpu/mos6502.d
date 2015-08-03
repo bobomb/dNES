@@ -1111,6 +1111,7 @@ class MOS6502
         auto cpu = new MOS6502;
         auto ram = Console.ram;
         cpu.powerOn();
+        //Case 1, immediate mode no flags set
         auto savedCycles = cpu.cycles;
         cpu.a = 0xF;
         ram.write(cpu.pc, 0xB);
@@ -1119,7 +1120,24 @@ class MOS6502
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 0);
         assert(cpu.cycles == savedCycles + 2);
-        
+        //Case 2, immediate mode negative flag set
+        savedCycles = cpu.cycles;
+        cpu.a = 0xF;
+        ram.write(cpu.pc, 0xF0);
+        cpu.EOR(0x49); //EOR immediate
+        assert(cpu.a == 0xFF);
+        assert(cpu.status.z == 0);
+        assert(cpu.status.n == 1);
+        assert(cpu.cycles == savedCycles + 2);
+        //Case 3, immediate mode zero flag set
+        savedCycles = cpu.cycles;
+        cpu.a = 0xF;
+        ram.write(cpu.pc, 0xF);
+        cpu.EOR(0x49); //EOR immediate
+        assert(cpu.a == 0);
+        assert(cpu.status.z == 1);
+        assert(cpu.status.n == 0);
+        assert(cpu.cycles == savedCycles + 2);
     }
     //***** Addressing Modes *****//
     // Immediate address mode is the operand is a 1 byte constant following the
