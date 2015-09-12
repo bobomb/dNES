@@ -1111,7 +1111,7 @@ class MOS6502
         auto cpu = new MOS6502;
         auto ram = Console.ram;
         cpu.powerOn();
-        //Case 1, immediate mode no flags set
+        //Case 1 mode 1, immediate mode no flags set
         auto savedCycles = cpu.cycles;
         cpu.a = 0xF;
         ram.write(cpu.pc, 0xB);
@@ -1120,7 +1120,7 @@ class MOS6502
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 0);
         assert(cpu.cycles == savedCycles + 2);
-        //Case 2, immediate mode negative flag set
+        //Case 2 mode 1, immediate mode negative flag set
         savedCycles = cpu.cycles;
         cpu.a = 0xF;
         ram.write(cpu.pc, 0xF0);
@@ -1129,7 +1129,7 @@ class MOS6502
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 1);
         assert(cpu.cycles == savedCycles + 2);
-        //Case 3, immediate mode zero flag set
+        //Case 3 mode 1, immediate mode zero flag set
         savedCycles = cpu.cycles;
         cpu.a = 0xF;
         ram.write(cpu.pc, 0xF);
@@ -1138,7 +1138,7 @@ class MOS6502
         assert(cpu.status.z == 1);
         assert(cpu.status.n == 0);
         assert(cpu.cycles == savedCycles + 2);
-        //Case 4, zero page mode no flags set
+        //Case 4 mode 2, zero page mode no flags set
         savedCycles = cpu.cycles;
         cpu.a = 0xF;
         ram.write(cpu.pc, 0); //write address 0 to offset to zero page address 0
@@ -1148,7 +1148,7 @@ class MOS6502
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 0);
         assert(cpu.cycles == savedCycles + 3);
-        //Case 5, zero page indexed no flags set
+        //Case 5 mode 3, zero page indexed no flags set
         savedCycles = cpu.cycles;
         cpu.a = 0xF;
         ram.write(cpu.pc, 2); //write address 2 to offset to zero page address 0
@@ -1159,7 +1159,7 @@ class MOS6502
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 0);
         assert(cpu.cycles == savedCycles + 4);
-        //Case 6, absolute zero flag set
+        //Case 6 mode 4, absolute zero flag set
         savedCycles = cpu.cycles;
         cpu.a = 0xF;
         ram.write16(cpu.pc, 0x1234); //write address 0x1234 to PC
@@ -1169,6 +1169,10 @@ class MOS6502
         assert(cpu.status.z == 1);
         assert(cpu.status.n == 0);
         assert(cpu.cycles == savedCycles + 4);
+        //Case 7 mode 5, absolute indexed x
+        //Case 8 mode 6, absolute indexed y
+        //Case 9 mode 7, indexed indirect
+        //case 10 mode 8, indirect indexed
     }
     //***** Addressing Modes *****//
     // Immediate address mode is the operand is a 1 byte constant following the
