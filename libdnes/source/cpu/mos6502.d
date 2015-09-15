@@ -331,9 +331,11 @@ class MOS6502
             case AddressingModeType.ABSOLUTE_Y:
                 return &(absoluteAddressMode);
             case AddressingModeType.INDIRECT:
-            case AddressingModeType.INDEXED_INDIRECT:
-            case AddressingModeType.INDIRECT_INDEXED:
                 return &(indirectAddressMode);
+            case AddressingModeType.INDEXED_INDIRECT:
+                return &(indexedIndirectAddressMode);
+            case AddressingModeType.INDIRECT_INDEXED:
+                return &(indirectIndexedAddressMode);
             default:
                 throw new InvalidAddressingModeException(instruction, opcode);
         }
@@ -1098,8 +1100,8 @@ class MOS6502
         Absolute 0x4D 4
         Absolute,X 0x5D 4(+1 if page crossed)
         Absolute,Y 0x59 4(+1 if page crossed)
-        (Indirect,X) 0x41 6
-        (Indirect),Y 0x51 5(+1 if page crossed)
+        (Indirect,X) 0x41 6 <-indexed indirect
+        (Indirect),Y 0x51 5(+1 if page crossed) <-indirect indexed
     */
     unittest //TODO
     {
@@ -1171,7 +1173,18 @@ class MOS6502
         assert(cpu.cycles == savedCycles + 4);
         //Case 7 mode 5, absolute indexed x
         //Case 8 mode 6, absolute indexed y
-        //Case 9 mode 7, indexed indirect
+        //Case 9 mode 7, indexed indirect (target = 
+        savedCycles = cpu.cycles;
+        cpu.a = 0xF;
+        cpu.x = 4; //X register is 4. This will be added to the operand m (0xA in next line)
+        ram.write(cpu.pc, 0xA); //operand is 0xA
+        ram.write(0xE, 0xF0); //write value 0xF0 to zero page address 0xA+4 = 0xE, which is what the target
+        //address will be resolved to
+        cpu.EOR(0x41);
+        assert(cpu.a == 0xFF);
+        assert(cpu.status.z == 0);
+        assert(cpu.status.n == 1);
+        assert(cpu.cycles == savedCycles + 6);
         //case 10 mode 8, indirect indexed
     }
     //***** Addressing Modes *****//
@@ -1422,35 +1435,34 @@ class MOS6502
     // to get the final memory address and returned
     // This mode does zero page wrapping 
     // Additionally it will read the target address as 16 bytes
-    ushort indexedIndirectAddressMode(ubyte indexValue)
+    ushort indexedIndirectAddressMode(string instruction = "", ubyte opcode = 0)
     {
         ubyte zeroPageAddress = Console.ram.read(this.pc++);
-        ubyte targetAddress = cast(ubyte)(zeroPageAddress + indexValue);
-        return Console.ram.read16(cast(ushort)targetAddress);
+        ubyte targetAddress = cast(ubyte)(zeroPageAddress + this.x);
+        //return Console.ram.read16(cast(ushort)targetAddress);
+        return targetAddress;
     }
     unittest 
     {
+        
         auto cpu = new MOS6502;
         cpu.powerOn();
         // Case 1 : no zero page wrapping
         //write zero page addres 0x0F to PC
         Console.ram.write(cpu.pc, 0x0F);
-        //write address 0xCDAB to zero page addres 0x0F+7 (bytes 0x16 and 0x17)
-        Console.ram.write(0x16, 0xAB);
-        Console.ram.write(0x17, 0xCD);
-        //indexed indirect with an idex of 7
-        ushort address = cpu.indexedIndirectAddressMode(0x7);
-        assert(address == 0xCDAB);
+        //indexed indirect with an idex of 7 will produce: 0x0F + 0x7 = 0x16
+        cpu.x = 0x7;
+        ushort address = cpu.indexedIndirectAddressMode();
+        assert(address == 0x16);
 
         // Case 1 : zero page wrapping
         //write zero page addres 0xFF to PC
         Console.ram.write(cpu.pc, 0xFF);
-        //write address 0xCDAB to zero page addres 0xFF+7 (bytes 0x06 and 0x07)
-        Console.ram.write(0x06, 0xAB);
-        Console.ram.write(0x07, 0xCD);
-        //indexed indirect with an idex of 7
-        address = cpu.indexedIndirectAddressMode(0x7);
-        assert(address == 0xCDAB);
+        //indexed indirect with an idex of 7 will produce: 0xFF + 0x7 = 0x06
+        cpu.x = 0x7;
+        address = cpu.indexedIndirectAddressMode();
+        assert(address == 0x06);
+        
     }
 
     // indirect indexed is similar to indexed indirect, except the index offset
@@ -1459,11 +1471,11 @@ class MOS6502
     // operand, look up a 16 bit value in the zero page, add the index to that 
     // and return it as the final address. note that there is no zero page 
     // address wrapping
-    ushort indirectIndexedAddressMode(ubyte indexValue)
+    ushort indirectIndexedAddressMode(string instruction = "", ubyte opcode = 0)
     {
         ubyte zeroPageAddress = Console.ram.read(this.pc++);
         ushort targetAddress = Console.ram.read16(cast(ushort) zeroPageAddress);
-        return cast(ushort) (targetAddress + indexValue);
+        return cast(ushort) (targetAddress + this.y);
     }
     unittest
     {
@@ -1476,7 +1488,8 @@ class MOS6502
         Console.ram.write(0x0F, 0xAB);
         Console.ram.write(0x10, 0xCD);
         //indirect indexed with an idex of 7
-        ushort address = cpu.indirectIndexedAddressMode(0x7);
+        cpu.y = 0x7;
+        ushort address = cpu.indirectIndexedAddressMode();
         assert(address == 0xCDAB + 0x7);
         // Case 2 : wrapping around the 16 bit address space
         //write zero page addres 0x0F to PC
@@ -1485,7 +1498,8 @@ class MOS6502
         Console.ram.write(0x0F, 0xFE);
         Console.ram.write(0x10, 0xFF);
         //indirect indexed with an idex of 7
-        address = cpu.indirectIndexedAddressMode(0x7);
+        cpu.y = 0x7;
+        address = cpu.indirectIndexedAddressMode();
         assert(address == cast(ushort)(0xFFFE + 7));
     }
 
@@ -1658,7 +1672,7 @@ class MOS6502
           0x01,  0x10,  0xA0,  0x00,  0xD0,  0xD0,  0xD0,  0xD0, // 2
           0xC2,  0xF1,  0x00,  0xF1,  0xB1,  0xB1,  0xB1,  0xB1, // 3
           0x01,  0xD2,  0x00,  0xD2,  0xD1,  0xD1,  0xD1,  0xD1, // 3
-          0x01,  0xF2,  0x00,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // 4
+          0x01,  0xF1,  0x00,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // 4
           0x01,  0x10,  0xA0,  0x00,  0xD0,  0xD0,  0xD0,  0xD0, // 4
           0xC0,  0xF1,  0x00,  0xF1,  0xB1,  0xB1,  0xB1,  0xB1, // 5
           0x01,  0xD2,  0x00,  0xD2,  0xD1,  0xD1,  0xD1,  0xD1, // 5
