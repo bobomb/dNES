@@ -309,6 +309,7 @@ class MOS6502
 
     ushort delegate(string,ubyte) decodeAddressMode(string instruction, ubyte opcode)
     {
+        pageBoundaryWasCrossed = false; //reset the page boundry crossing flag each time we decode the next address mode
         AddressingModeType addressModeCode = 
             cast(AddressingModeType)(addressModeTable[opcode]);
 
@@ -448,16 +449,16 @@ class MOS6502
         }
         else
         {
+            m = ram.read(addressModeFunction("ADC", opcode));
             if (isIndexedMode(opcode) && 
-                    (addressMode != AddressingModeType.INDIRECT_INDEXED) && 
-                    (addressMode != AddressingModeType.ZEROPAGE_X))
+                (addressMode != AddressingModeType.INDIRECT_INDEXED) && 
+                (addressMode != AddressingModeType.ZEROPAGE_X))
             {
                 if (pageBoundaryWasCrossed) 
                 {
-                    this.cycles++; // pre-add the extra cycle before table lookup
+                    this.cycles++;
                 }
             }
-            m = ram.read(addressModeFunction("ADC", opcode));
         }
 
         auto result = cast(ushort)(a+m+c);
@@ -1076,16 +1077,17 @@ class MOS6502
         }
         else
         {
+            m = ram.read(addressModeFunction("EOR", opcode));
+
             if (isIndexedMode(opcode) && 
                 (addressMode != AddressingModeType.INDIRECT_INDEXED) && 
                 (addressMode != AddressingModeType.ZEROPAGE_X))
             {
                 if (pageBoundaryWasCrossed) 
                 {
-                    this.cycles++; // pre-add the extra cycle before table lookup
+                    this.cycles++;
                 }
             }
-            m = ram.read(addressModeFunction("EOR", opcode));
         }
 
         this.a = cast(ubyte)(a ^ m);
@@ -1172,7 +1174,27 @@ class MOS6502
         assert(cpu.status.n == 0);
         assert(cpu.cycles == savedCycles + 4);
         //Case 7 mode 5, absolute indexed x
-        //Case 8 mode 6, absolute indexed y
+        savedCycles = cpu.cycles;
+        cpu.a = 0xF;
+        ram.write16(cpu.pc, 0x1234); //write address 0x1234 to PC
+        cpu.x = 9;
+        ram.write(0x1234+9, 0xF); //write operand m to address 0x1234+9
+        cpu.EOR(0x5D); //EOR absolute
+        assert(cpu.a == 0);
+        assert(cpu.status.z == 1);
+        assert(cpu.status.n == 0);
+        assert(cpu.cycles == savedCycles + 4);
+        //Case 8 mode 6, absolute indexed y, page boundary crossed
+        savedCycles = cpu.cycles;
+        cpu.a = 0xF;
+        ram.write16(cpu.pc, 0x1234); //write address 0x1234 to PC
+        cpu.y = 0xff;
+        ram.write(0x1234+0xFF, 0xF); //write operand m to address 0x1234+0xFF
+        cpu.EOR(0x59); //EOR absolute
+        assert(cpu.a == 0);
+        assert(cpu.status.z == 1);
+        assert(cpu.status.n == 0);
+        assert(cpu.cycles == savedCycles + 5);
         //Case 9 mode 7, indexed indirect (target = 
         savedCycles = cpu.cycles;
         cpu.a = 0xF;
@@ -1547,7 +1569,7 @@ class MOS6502
         ubyte pageOne = (startingAddress >> 8) & 0x00FF;
         ubyte pageTwo = (finalAddress >> 8) & 0x00FF;
 
-        pageBoundaryWasCrossed = pageBoundaryWasCrossed = (pageOne != pageTwo);
+        pageBoundaryWasCrossed = (pageOne != pageTwo);
     }
     unittest
     {
