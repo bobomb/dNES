@@ -1105,7 +1105,7 @@ class MOS6502
         (Indirect,X) 0x41 6 <-indexed indirect
         (Indirect),Y 0x51 5(+1 if page crossed) <-indirect indexed
     */
-    unittest //TODO
+    unittest
     {
         //verify all properties in imediate mode (final value of a, zero/negative flags, cycles)
         //then for all subsequent modes just verify the final value of a and cycles
@@ -1208,6 +1208,46 @@ class MOS6502
         assert(cpu.status.n == 1);
         assert(cpu.cycles == savedCycles + 6);
         //case 10 mode 8, indirect indexed
+    }
+
+    //Increment memory address by 1
+    //Affects Z and N flags
+    private void INC(ubyte opcode)
+    {
+        auto instructionName = "INC";
+        auto addressModeFunction = decodeAddressMode(instructionName, opcode);
+        auto addressMode     = addressModeTable[opcode];
+
+        auto ram = Console.ram;
+        ubyte a; // a = operand, in our case the address to load and increment by 1
+        ushort m; // m = a + 1, stored back into a
+
+        m = addressModeFunction(instructionName, opcode);
+        a = (ram.read(m) + 1 ) & 0xFF; //gotta round
+
+        checkAndSetZero(a);
+        checkAndSetNegative(a);
+        this.cycles += cycleCountTable[opcode];
+    }
+    /*  Address Mode    Syntax        Opcode  I-Len  T-Cnt  
+        Zero Page       INC $A5        $E6      2     5   
+        Zero Page,X     INC $A5,X      $F6      2     6   
+        Absolute        INC $A5B6      $EE      3     6   
+        Absolute,X      INC $A5B6,X    $FE      3     7   
+    */
+    unittest //TODO
+    {
+        auto cpu = new MOS6502;
+        auto ram = Console.ram;
+        cpu.powerOn();
+        //Case 1 mode 1, zero page, n is set, z is unset
+        auto savedCycles = cpu.cycles;
+        //Case 2 mode 1, zero page, z is set, n is unset
+        //Case 3 mode 1, zero page, n is set, z is set
+        //Case 4 mode 1, zero page, n is u nset, z is  unset
+        //Case 5 mode 2, zero page indexed, n is set z is unset
+        //Case 5 mode 3, absolute, z is set, n is unset
+        //Case 6 mode 4, absolute indexed, n is set, z is set
     }
     //***** Addressing Modes *****//
     // Immediate address mode is the operand is a 1 byte constant following the
