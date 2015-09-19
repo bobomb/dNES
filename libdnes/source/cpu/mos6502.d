@@ -1219,14 +1219,14 @@ class MOS6502
         auto addressMode     = addressModeTable[opcode];
 
         auto ram = Console.ram;
-        ubyte a; // a = operand, in our case the address to load and increment by 1
-        ushort m; // m = a + 1, stored back into a
+        ushort a; // a = operand, in our case the address to load and increment by 1
+        ubyte m; // m = a + 1, stored back into a
 
-        m = addressModeFunction(instructionName, opcode);
-        a = (ram.read(m) + 1 ) & 0xFF; //gotta round
-
-        checkAndSetZero(a);
-        checkAndSetNegative(a);
+        a = addressModeFunction(instructionName, opcode);
+        m = (ram.read(a) + 1 ) & 0xFF; //gotta round
+        ram.write(a, m);
+        checkAndSetZero(m);
+        checkAndSetNegative(m);
         this.cycles += cycleCountTable[opcode];
     }
     /*  Address Mode    Syntax        Opcode  I-Len  T-Cnt  
@@ -1242,12 +1242,19 @@ class MOS6502
         cpu.powerOn();
         //Case 1 mode 1, zero page, n is set, z is unset
         auto savedCycles = cpu.cycles;
+        ram.write(cpu.pc, 5); //zero page address 5
+        ram.write(5, 0x7F); //0x7F + 1 = 0x80, n flag (bit 7) gets set
+        cpu.INC(0xE6);
+        auto result = ram.read(5);
+        assert(ram.read(5) == (0x7F + 1));
+        assert(cpu.status.z == 0);
+        assert(cpu.status.n == 1);
+        assert(cpu.cycles == savedCycles + 5);
         //Case 2 mode 1, zero page, z is set, n is unset
-        //Case 3 mode 1, zero page, n is set, z is set
-        //Case 4 mode 1, zero page, n is u nset, z is  unset
-        //Case 5 mode 2, zero page indexed, n is set z is unset
+        //Case 3 mode 1, zero page, n is unset, z is unset
+        //Case 4 mode 2, zero page indexed, n is set z is unset
         //Case 5 mode 3, absolute, z is set, n is unset
-        //Case 6 mode 4, absolute indexed, n is set, z is set
+        //Case 6 mode 4, absolute indexed, n is set, z is unset
     }
     //***** Addressing Modes *****//
     // Immediate address mode is the operand is a 1 byte constant following the
