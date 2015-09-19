@@ -1235,7 +1235,7 @@ class MOS6502
         Absolute        INC $A5B6      $EE      3     6   
         Absolute,X      INC $A5B6,X    $FE      3     7   
     */
-    unittest //TODO
+    unittest
     {
         auto cpu = new MOS6502;
         auto ram = Console.ram;
@@ -1245,16 +1245,57 @@ class MOS6502
         ram.write(cpu.pc, 5); //zero page address 5
         ram.write(5, 0x7F); //0x7F + 1 = 0x80, n flag (bit 7) gets set
         cpu.INC(0xE6);
-        auto result = ram.read(5);
-        assert(ram.read(5) == (0x7F + 1));
+        assert(ram.read(5) == cast(ubyte)(0x7F + 1));
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 1);
         assert(cpu.cycles == savedCycles + 5);
         //Case 2 mode 1, zero page, z is set, n is unset
+        savedCycles = cpu.cycles;
+        ram.write(cpu.pc, 5); //zero page address 5
+        ram.write(5, 0xFF); //0xFF + 1 = 0x00, z flag is set since result is zero
+        cpu.INC(0xE6);
+        assert(ram.read(5) == cast(ubyte)(0xFF + 1));
+        assert(cpu.status.z == 1);
+        assert(cpu.status.n == 0);
+        assert(cpu.cycles == savedCycles + 5);
         //Case 3 mode 1, zero page, n is unset, z is unset
+        savedCycles = cpu.cycles;
+        ram.write(cpu.pc, 5); //zero page address 5
+        ram.write(5, 0x70); //0x70 + 1 = 0x70, z and n flags unset
+        cpu.INC(0xE6);
+        assert(ram.read(5) == cast(ubyte)(0x70 + 1));
+        assert(cpu.status.z == 0);
+        assert(cpu.status.n == 0);
+        assert(cpu.cycles == savedCycles + 5);
         //Case 4 mode 2, zero page indexed, n is set z is unset
+        savedCycles = cpu.cycles;
+        ram.write(cpu.pc, 5); //zero page address 5
+        cpu.x = 6; //index is 6
+        ram.write(5+6, 0x7F); //0x7F + 1 = 0x80, n flag (bit 7) gets set
+        cpu.INC(0xF6);
+        assert(ram.read(5+6) == cast(ubyte)(0x7F + 1)); 
+        assert(cpu.status.z == 0);
+        assert(cpu.status.n == 1);
+        assert(cpu.cycles == savedCycles + 6);
         //Case 5 mode 3, absolute, z is set, n is unset
+        savedCycles = cpu.cycles;
+        ram.write16(cpu.pc, 0x1234); //Absolute address 0x1234
+        ram.write(0x1234, 0xFF); //0xFF + 1 = 0x00, z flag is set since result is zero
+        cpu.INC(0xEE);
+        assert(ram.read(0x1234) == cast(ubyte)(0xFF + 1)); 
+        assert(cpu.status.z == 1);
+        assert(cpu.status.n == 0);
+        assert(cpu.cycles == savedCycles + 6);
         //Case 6 mode 4, absolute indexed, n is set, z is unset
+        savedCycles = cpu.cycles;
+        ram.write16(cpu.pc, 0x1234); //Absolute address 0x1234
+        cpu.x = 8; //index is 8
+        ram.write(0x1234 + 8, 0x7F); //0x7F + 1 = 0x80, n flag (bit 7) gets set
+        cpu.INC(0xFE);
+        assert(ram.read(0x1234 + 8) == cast(ubyte)(0x7F + 1)); 
+        assert(cpu.status.z == 0);
+        assert(cpu.status.n == 1);
+        assert(cpu.cycles == savedCycles + 7);
     }
     //***** Addressing Modes *****//
     // Immediate address mode is the operand is a 1 byte constant following the
