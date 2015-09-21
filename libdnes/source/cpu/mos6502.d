@@ -1335,6 +1335,44 @@ class MOS6502
 
     }
 
+    //Increment Y register by 1
+    //Affects Z and N flags
+    private void INY(ubyte opcode)
+    {
+        auto instructionName = "INY";
+        auto m = cast(ubyte)(++this.y);
+        checkAndSetZero(m);
+        checkAndSetNegative(m);
+        this.cycles += cycleCountTable[opcode];
+    }
+    /*  Address Mode    Syntax        Opcode  I-Len  T-Cnt  
+        Implied         INY            $C8      1     2    
+    */
+
+    unittest
+    {
+        auto cpu = new MOS6502;
+        auto ram = Console.ram;
+        cpu.powerOn();
+        //Case 1 mode 1, implied, n is set
+        auto savedCycles = cpu.cycles;
+        cpu.y = 0x7F;
+        cpu.INY(0xC8);
+        assert(cpu.y == cast(ubyte)(0x7F + 1));
+        assert(cpu.status.z == 0);
+        assert(cpu.status.n == 1);
+        assert(cpu.cycles == savedCycles + 2);
+        //Case 2 mode 1, implied, z is set
+        savedCycles = cpu.cycles;
+        cpu.y = 0xFF;
+        cpu.INY(0xC8);
+        assert(cpu.y == cast(ubyte)(0xFF + 1));
+        assert(cpu.status.z == 1);
+        assert(cpu.status.n == 0);
+        assert(cpu.cycles == savedCycles + 2);
+
+    }
+
     //***** Addressing Modes *****//
     // Immediate address mode is the operand is a 1 byte constant following the
     // opcode so read the constant, increment pc by 1 and return it
