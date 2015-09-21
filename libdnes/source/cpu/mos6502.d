@@ -1297,6 +1297,44 @@ class MOS6502
         assert(cpu.status.n == 1);
         assert(cpu.cycles == savedCycles + 7);
     }
+
+    //Increment X register by 1
+    //Affects Z and N flags
+    private void INX(ubyte opcode)
+    {
+        auto instructionName = "INX";
+        auto m = cast(ubyte)(++this.x);
+        checkAndSetZero(m);
+        checkAndSetNegative(m);
+        this.cycles += cycleCountTable[opcode];
+    }
+    /*  Address Mode    Syntax        Opcode  I-Len  T-Cnt  
+        Implied         INX            $E8      1     2    
+    */
+    unittest
+    {
+        auto cpu = new MOS6502;
+        auto ram = Console.ram;
+        cpu.powerOn();
+        //Case 1 mode 1, implied, n is set
+        auto savedCycles = cpu.cycles;
+        cpu.x = 0x7F;
+        cpu.INX(0xE8);
+        assert(cpu.x == cast(ubyte)(0x7F + 1));
+        assert(cpu.status.z == 0);
+        assert(cpu.status.n == 1);
+        assert(cpu.cycles == savedCycles + 2);
+        //Case 2 mode 1, implied, z is set
+        savedCycles = cpu.cycles;
+        cpu.x = 0xFF;
+        cpu.INX(0xE8);
+        assert(cpu.x == cast(ubyte)(0xFF + 1));
+        assert(cpu.status.z == 1);
+        assert(cpu.status.n == 0);
+        assert(cpu.cycles == savedCycles + 2);
+
+    }
+
     //***** Addressing Modes *****//
     // Immediate address mode is the operand is a 1 byte constant following the
     // opcode so read the constant, increment pc by 1 and return it
