@@ -1373,6 +1373,43 @@ class MOS6502
 
     }
 
+    //Pushes A onto stacks, decrements SP by 1
+    private void PHA(ubyte opcode)
+    {
+        auto instructionName = "PHA";
+        ushort stackAddress = cast(ushort)(this.stackBaseAddress + this.sp);
+        auto ram = Console.ram;
+        ram.write(stackAddress, this.a);
+        this.sp = cast(ubyte)(--this.sp);
+        this.cycles += cycleCountTable[opcode];
+    }
+    /*  Address Mode    Syntax        Opcode  I-Len  T-Cnt  
+        Implied         PHA            $48      1     3    
+    */
+    unittest
+    {
+        auto cpu = new MOS6502;
+        auto ram = Console.ram;
+        auto savedSp = cpu.sp;
+        cpu.powerOn();
+        //Case 1 mode 1, sp = FF
+        auto savedCycles = cpu.cycles;
+        cpu.sp = 0xFF;
+        cpu.a = 0xAB;
+        cpu.PHA(0x48);
+        assert(cpu.sp == 0xFE);
+        assert(ram.read(cast(ushort)(cpu.stackBaseAddress + cpu.sp + 1)) == 0xAB);
+        assert(cpu.cycles == savedCycles + 3);
+        //Case 2 mode 1, sp = 0, wraparound to 0xFF
+        savedCycles = cpu.cycles;
+        cpu.sp = 0x00;
+        cpu.a = 0xCD;
+        cpu.PHA(0x48);
+        assert(cpu.sp == 0xFF);
+        assert(ram.read(cast(ushort)(cpu.stackBaseAddress + cast(ubyte)(cpu.sp + 1))) == 0xCD);
+        assert(cpu.cycles == savedCycles + 3);
+    }
+
     //***** Addressing Modes *****//
     // Immediate address mode is the operand is a 1 byte constant following the
     // opcode so read the constant, increment pc by 1 and return it
