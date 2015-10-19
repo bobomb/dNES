@@ -1491,6 +1491,48 @@ class MOS6502
         assert(cpu.a == 0xCD);
         assert(cpu.cycles == savedCycles + 4);
     }
+
+    //Pulls/pops status register off the stacks (and into P), increments SP by 1
+    private void PLP(ubyte opcode)
+    {
+        auto instructionName = "PLP";
+        this.sp = cast(ubyte)(++this.sp);
+        ushort stackAddress = cast(ushort)(this.stackBaseAddress + this.sp);
+        auto ram = Console.ram;
+        this.status.value = ram.read(stackAddress);
+        this.cycles += cycleCountTable[opcode];
+    }
+    /*  Address Mode    Syntax        Opcode  I-Len  T-Cnt  
+        Implied         PLP            $28      1     4 
+    */
+    unittest
+    {
+        auto cpu = new MOS6502;
+        auto ram = Console.ram;
+        auto savedSp = cpu.sp;
+        cpu.powerOn();
+        //Case 1 mode 1, sp = FF
+        auto savedCycles = cpu.cycles;
+        cpu.sp = 0xFF;
+        cpu.status.value = 0x00;
+        cpu.pushStack(0xAB);
+        assert(cpu.sp == 0xFE);
+        cpu.PLP(0x28);
+        assert(cpu.sp == 0xFF);
+        assert(cpu.status.value == 0xAB);
+        assert(cpu.cycles == savedCycles + 4);
+        //Case 2 mode 1, sp = 0, wraparound to 0xFF and then back to 0
+        savedCycles = cpu.cycles;
+        cpu.sp = 0x00;
+        cpu.status.value = 0x00;
+        cpu.pushStack(0xCD);
+        assert(cpu.sp == 0xFF);
+        cpu.PLP(0x28);
+        assert(cpu.sp == 0x00);
+        assert(cpu.status.value == (0xCD | 0b0010_0000)); //writing to status register will always cause bit 6 to be set
+        assert(cpu.cycles == savedCycles + 4);
+    }
+
     //***** Addressing Modes *****//
     // Immediate address mode is the operand is a 1 byte constant following the
     // opcode so read the constant, increment pc by 1 and return it
