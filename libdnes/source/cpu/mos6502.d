@@ -1533,6 +1533,43 @@ class MOS6502
         assert(cpu.cycles == savedCycles + 4);
     }
 
+    //Rotates a byte by shifting to the left 1 bit. Carry flag is placed into bit 0, Bit 7 is placed into carry flag, and bit 6 is placed
+    //into negative flag, and sets z flag with the result of the rotate
+    private void ROL(ubyte opcode)
+    {
+        auto instructionName = "ROL";
+        auto addressModeFunction = decodeAddressMode(instructionName, opcode);
+        auto addressMode     = addressModeTable[opcode];
+
+        auto ram = Console.ram;
+        ushort operand; // operand for non accumulator modes
+        ubyte accumulator; //operand for accumulator mode
+
+        if(addressMode == AddressingModeType.ACCUMULATOR)
+        {
+            auto carry = this.status.c;
+            this.status.c = cast(bool)(this.a & 0x80); //copy bit 7 into carry
+            this.status.n = cast(bool)(this.a & 0x40); //copy bit 6 into negative
+            this.a <<= 1; //shift a left by 1 bit (bit 0 should be 1 now)
+            this.a |= carry; //copy carry to bit 0
+            checkAndSetZero(this.a);
+        }
+        else //TODO
+        {
+            operand = addressModeFunction(instructionName, opcode);            
+        }
+    }
+    /*  Address Mode    Syntax        Opcode  I-Len  T-Cnt  
+        Accumulator     ROL A          $2A      1    2   
+        Zero Page       ROL $A5        $26      2    5   
+        Zero Page,X     ROL $A5,X      $36      2    6   
+        Absolute        ROL $A5B6      $2E      3    6   
+        Absolute,X      ROL $A5B6,X    $3E      3    7    
+    */
+    unittest //TODO
+    {
+    }
+
     //***** Addressing Modes *****//
     // Immediate address mode is the operand is a 1 byte constant following the
     // opcode so read the constant, increment pc by 1 and return it
