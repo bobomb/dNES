@@ -23,5 +23,3 @@ unittest
     auto result = addStuff(1, 2);
     assert(result == 3);
 }
-
-// ex :set foldmethod=marker foldmarker=@region,@endregion expandtab ts=4 sts=4 expandtab sw=4 filetype=d :
