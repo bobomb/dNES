@@ -1,3 +1,4 @@
+// vim: set foldmethod=syntax foldlevel=1 expandtab ts=4 sts=4 expandtab sw=4 filetype=d :
 /* console.d
  * Container used to simulate "bus" communication?
  * Copyright (c) 2015 dNES Team;
@@ -14,11 +15,11 @@ class Console
 
     }
 
-	static void initialize()
-	{
-		processor  = new MOS6502();
-        ram     = new RAM;   
-	}
+    static void initialize()
+    {
+        processor  = new MOS6502();
+        ram     = new RAM;
+    }
 
     void loadROM(string filename)
     {
@@ -28,7 +29,7 @@ class Console
 
     void startEmulation()
     {
-        this.processor.powerOn(); 
+        this.processor.powerOn();
     }
 
     void endEmulation()
@@ -42,4 +43,4 @@ class Console
     static IMemory memoryMapper;
 }
 
-// ex: set foldmethod=syntax foldlevel=1 expandtab ts=4 sts=4 expandtab sw=4 filetype=d : 
+// ex: set foldmethod=syntax foldlevel=1 expandtab ts=4 sts=4 expandtab sw=4 filetype=d :

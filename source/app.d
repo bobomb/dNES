@@ -1,3 +1,5 @@
+// vim: set foldmethod=syntax foldlevel=1 expandtab ts=4 sts=4 expandtab sw=4 filetype=d :
+
 import std.stdio;
 import std.algorithm;
 
@@ -22,4 +24,4 @@ unittest
     assert(result == 3);
 }
 
-// ex :set foldmethod=marker foldmarker=@region,@endregion expandtab ts=4 sts=4 expandtab sw=4 filetype=d : 
+// ex :set foldmethod=marker foldmarker=@region,@endregion expandtab ts=4 sts=4 expandtab sw=4 filetype=d :

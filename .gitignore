@@ -33,3 +33,4 @@ Debug/dNES.dep
 libdnes/reference/perfect6502/measure
 *.gcda
 *.gcno
+*.orig
