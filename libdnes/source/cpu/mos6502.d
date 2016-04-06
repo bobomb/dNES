@@ -13,36 +13,18 @@ import memory;
 
 class MOS6502
 {
-    enum AddressingModeType : ubyte
-    {
-        IMPLIED     = 0x01,
-        IMMEDIATE   = 0x10,
-        ACCUMULATOR = 0xA0,
-        ZEROPAGE    = 0xB0,
-        ZEROPAGE_X  = 0xB1,
-        ZEROPAGE_Y  = 0xB2,
-        RELATIVE    = 0xC0,
-        ABSOLUTE    = 0xD0,
-        ABSOLUTE_X  = 0xD1,
-        ABSOLUTE_Y  = 0xD2,
-        INDIRECT    = 0xF0,
-        INDEXED_INDIRECT = 0xF1, // INDIRECT_X
-        INDIRECT_INDEXED = 0xF2  // INDIRECT_Y
-    }
-
-
-    this()
+    public this()
     {
         status = new StatusRegister;
         pageBoundaryWasCrossed = false;
     }
 
     // From http://wiki.nesdev.com/w/index.php/CPU_power_up_state
-    void powerOn()
+    public void powerOn()
     {
         this.status.value = 0x34;
-        this.a = this.x = this.y = 0;
-        this.sp = 0xFD;
+        this.registers.a = this.registers.x = this.registers.y = 0;
+        this.registers.sp = 0xFD;
 
         if (Console.ram is null)
         {
@@ -51,7 +33,7 @@ class MOS6502
             // start.
             Console.ram = new RAM;
         }
-        this.pc = 0xC000;
+        this.registers.pc = 0xC000;
     }
     unittest
     {
@@ -76,9 +58,9 @@ class MOS6502
     //    The internal memory was unchanged
     //    APU mode in $4017 was unchanged
     //    APU was silenced ($4015 = 0)
-    void reset()
+    private void reset()
     {
-        this.sp -= 0x03;
+        this.registers.sp -= 0x03;
         this.status.value = this.status.value | 0x04;
         // TODO: Console.MemoryMapper.Write(0x4015, 0);
     }
@@ -97,9 +79,9 @@ class MOS6502
         assert(cpu.status.value == (0x21 | 0x04)); // bit 6 (0x20) is always on
     }
 
-    ubyte fetch()
+    private ubyte fetch()
     {
-        return Console.ram.read(this.pc++);
+        return Console.ram.read(this.registers.pc++);
     }
     unittest
     {
@@ -117,19 +99,7 @@ class MOS6502
         assert(instruction == 0xFF);
     }
 
-    public @property ulong cycleCount() {
-        return this.cycles;
-    }
-    unittest
-    {
-        auto cpu = new MOS6502;
-
-        assert(cpu.cycleCount() == 0);
-
-        cpu.cycles = 6543;
-        assert(cpu.cycleCount == 6543);
-    }
-    void delegate(ubyte) decode(ubyte opcode)
+    private void delegate(ubyte) decode(ubyte opcode)
     {
         switch (opcode)
         {
@@ -183,7 +153,7 @@ class MOS6502
     }
 
     //perform another cpu cycle of emulation
-    void cycle()
+    private void cycle()
     {
         //Priority: Reset > NMI > IRQ
         if (this.rst)
@@ -208,7 +178,7 @@ class MOS6502
     unittest
     {
         auto cpu = new MOS6502;
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         auto ram = Console.ram;
         //Check if RST is handled
         cpu.setReset();
@@ -219,69 +189,69 @@ class MOS6502
         cpu.cycle();
         assert(cpu.rst == false);
 
-        assert(cpu.cycles == savedCycles + 7 + 2); //2 cycles for NOP
+        assert(cpu.cycleCount == savedCycles + 7 + 2); //2 cycles for NOP
     }
 
-    void handleReset()
+    private void handleReset()
     {
         auto resetVectorAddress = Console.ram.read16(this.resetAddress);
-        this.pc = resetVectorAddress;
+        this.registers.pc = resetVectorAddress;
         this.rst = false;
-        this.cycles += 7;
+        this.cycleCount += 7;
     }
     unittest
     {
         auto cpu = new MOS6502;
         cpu.powerOn();
         auto ram = Console.ram;
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         ram.write16(cpu.resetAddress, 0xFC10); //write interrupt handler address
         cpu.rst = true;
         cpu.handleReset();
-        assert(cpu.cycles == savedCycles + 7);
+        assert(cpu.cycleCount == savedCycles + 7);
         assert(cpu.pc == 0xFC10);
         assert(cpu.rst == false);
     }
 
-    void handleNmi()
+    private void handleNmi()
     {
-        pushStack(cast(ubyte)(this.pc >> 8)); //write PC high byte to stack
-        pushStack(cast(ubyte)(this.pc));
+        pushStack(cast(ubyte)(this.registers.pc >> 8)); //write PC high byte to stack
+        pushStack(cast(ubyte)(this.registers.pc));
         pushStack(this.status.value);
         auto nmiVectorAddress = Console.ram.read16(this.nmiAddress);
-        this.pc = nmiVectorAddress;
+        this.registers.pc = nmiVectorAddress;
         this.nmi = false;
-        this.cycles += 7;
+        this.cycleCount += 7;
     }
     unittest
     {
         auto cpu = new MOS6502;
         cpu.powerOn();
         auto ram = Console.ram;
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         auto savedPC = cpu.pc;
         auto savedStatus = cpu.status.value;
         ram.write16(cpu.nmiAddress, 0x1D42); //write interrupt handler address
         cpu.handleNmi();
         assert(cpu.popStack() == savedStatus); //check status registers
         ushort previousPC = cpu.popStack() | (cpu.popStack() << 8); //verify pc write
-        assert(cpu.cycles == savedCycles + 7);
+        assert(cpu.cycleCount == savedCycles + 7);
         assert(cpu.pc == 0x1D42);
         assert(previousPC == savedPC);
 
     }
 
-    void handleIrq()
+    private void handleIrq()
     {
         if(this.status.i)
             return; //don't do anything if interrupt disable is set
 
-        pushStack(cast(ubyte)(this.pc >> 8)); //write PC high byte to stack
-        pushStack(cast(ubyte)(this.pc));
+        pushStack(cast(ubyte)(this.registers.pc >> 8)); //write PC high byte to stack
+        pushStack(cast(ubyte)(this.registers.pc));
         pushStack(this.status.value);
         auto irqVectorAddress = Console.ram.read16(this.irqAddress);
-        this.pc = irqVectorAddress;
-        this.cycles +=7;
+        this.registers.pc = irqVectorAddress;
+        this.cycleCount +=7;
     }
     unittest
     {
@@ -290,26 +260,26 @@ class MOS6502
         cpu.powerOn();
         cpu.status.i = false;
         auto ram = Console.ram;
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         auto savedPC = cpu.pc;
         auto savedStatus = cpu.status.value;
         ram.write16(cpu.irqAddress, 0xC296); //write interrupt handler address
         cpu.handleIrq();
         assert(cpu.popStack() == savedStatus); //check status registers
         ushort previousPC = cpu.popStack() | (cpu.popStack() << 8); //verify pc write
-        assert(cpu.cycles == savedCycles + 7);
+        assert(cpu.cycleCount == savedCycles + 7);
         assert(cpu.pc == 0xC296);
         assert(previousPC == savedPC);
         //case 2 : interrupt disable bit is set
         cpu.status.i = true;
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         ram.write16(cpu.irqAddress, 0x1111); //write interrupt handler address
         cpu.handleIrq();
-        assert(cpu.cycles == savedCycles + 0);
+        assert(cpu.cycleCount == savedCycles + 0);
         assert(cpu.pc == 0xC296);
     }
 
-    ushort delegate(string,ubyte) decodeAddressMode(string instruction, ubyte opcode)
+    private ushort delegate(string,ubyte) decodeAddressMode(string instruction, ubyte opcode)
     {
         pageBoundaryWasCrossed = false; //reset the page boundry crossing flag each time we decode the next address mode
         AddressingModeType addressModeCode =
@@ -362,7 +332,7 @@ class MOS6502
         {} // this exception is expected; suppress it.
     }
 
-    ubyte decodeIndex(string instruction, ubyte opcode)
+    private ubyte decodeIndex(string instruction, ubyte opcode)
     {
         ubyte indexType = addressModeTable[opcode] & 0x0F;
         switch (indexType)
@@ -370,9 +340,9 @@ class MOS6502
         case 0x00:
             return 0;
         case 0x01:
-            return x;
+            return this.registers.x;
         case 0x02:
-            return y;
+            return this.registers.y;
         default:
             throw new InvalidAddressIndexException(instruction, opcode);
         }
@@ -404,8 +374,8 @@ class MOS6502
     {
         auto addressModeFunction = decodeAddressMode("JMP", opcode);
 
-        this.pc = addressModeFunction("JMP", opcode);
-        this.cycles += cycleCountTable[opcode];
+        this.registers.pc = addressModeFunction("JMP", opcode);
+        this.cycleCount += cycleCountTable[opcode];
     }
     unittest
     {
@@ -442,7 +412,7 @@ class MOS6502
         ushort m; // m = operand
         ushort c; // c = carry value
 
-        a = this.a;
+        a = this.registers.a;
         c = this.status.c;
 
         if (addressMode == AddressingModeType.IMMEDIATE)
@@ -458,7 +428,7 @@ class MOS6502
             {
                 if (pageBoundaryWasCrossed)
                 {
-                    this.cycles++;
+                    this.cycleCount++;
                 }
             }
         }
@@ -467,20 +437,20 @@ class MOS6502
         // Check for overflow
         if (result > 255)
         {
-            this.a = cast(ubyte)(result - 255);
+            this.registers.a = cast(ubyte)(result - 255);
             this.status.c = 1;
         }
         else
         {
-            this.a = cast(ubyte)(result);
+            this.registers.a = cast(ubyte)(result);
             this.status.c = 0;
         }
 
-        checkAndSetZero(this.a);
+        checkAndSetZero(this.registers.a);
 
-        checkAndSetNegative(this.a);
+        checkAndSetNegative(this.registers.a);
 
-        if (((this.a^m) & 0x80) == 0 && ((a^this.a) & 0x80) != 0)
+        if (((this.registers.a^m) & 0x80) == 0 && ((a^this.registers.a) & 0x80) != 0)
         {
             this.status.v = 1;
         }
@@ -489,7 +459,7 @@ class MOS6502
             this.status.v = 0;
         }
 
-        this.cycles += cycleCountTable[opcode];
+        this.cycleCount += cycleCountTable[opcode];
     }
     unittest
     {
@@ -501,14 +471,14 @@ class MOS6502
         ulong cycles_end = 0;
 
         // Case 1: Immediate
-        cycles_start = cpu.cycles;
+        cycles_start = cpu.cycleCount;
         cpu.pc = 0x0101;          // move to new page
         cpu.a = 0x20;             // give an initial value other than 0
         cpu.status.c = 0;         // reset to 0
         ram.write(cpu.pc, 0x40);  // write operand to memory
 
         cpu.ADC(0x69);            // execute ADC immediate
-        cycles_end  = cpu.cycles; // get cycle count
+        cycles_end  = cpu.cycleCount; // get cycle count
         assert(cpu.a == 0x60);    // 0x20 + 0x40 = 0x60
         assert((cycles_end - cycles_start) == 2); // verify cycles taken
 
@@ -524,13 +494,13 @@ class MOS6502
         // @TODO continue testing each addressing mode
 
         // Case 4: Absolute
-        cycles_start = cpu.cycles;
+        cycles_start = cpu.cycleCount;
         cpu.a = 0;
         cpu.pc = 0x0400;
         ram.write16(cpu.pc, 0xB00B);
         ram.write(0xB00B, 0x7D);
         cpu.ADC(0x6D);
-        cycles_end  = cpu.cycles;
+        cycles_end  = cpu.cycleCount;
         assert(cpu.a == 0x7D);
         assert((cycles_end - cycles_start) == 4);
     }
@@ -548,10 +518,10 @@ class MOS6502
             operand = cast(ubyte)(addressModeFunction("ADC", opcode));
         }
 
-        this.a = (this.a & operand);
-        this.status.z = (this.a == 0   ? 1 : 0);
-        this.status.n = (this.a >= 128 ? 1 : 0);
-        this.cycles += cycleCountTable[opcode];
+        this.registers.a = (this.registers.a & operand);
+        this.status.z = (this.registers.a == 0   ? 1 : 0);
+        this.status.n = (this.registers.a >= 128 ? 1 : 0);
+        this.cycleCount += cycleCountTable[opcode];
     }
     unittest
     {
@@ -566,7 +536,7 @@ class MOS6502
         uint expected_cycles = 2;
         ubyte expected_result;
 
-        cycles_start = cpu.cycles;
+        cycles_start = cpu.cycleCount;
         cpu.pc = 0x0101;
 
         // iterate through all possible register/memory values and test them
@@ -577,10 +547,10 @@ class MOS6502
                 cpu.a = cast(ubyte)op1;
                 ram.write(cpu.pc, cast(ubyte)op2);
 
-                cycles_start = cpu.cycles;
+                cycles_start = cpu.cycleCount;
 
                 cpu.AND(0x29);
-                cycles_end = cpu.cycles;
+                cycles_end = cpu.cycleCount;
                 expected_result = cast(ubyte)op1 & cast(ubyte)op2;
 
                 //writef("0b%.8b & 0b%.8b = 0b%.8b\n", op1, op2, expected_result);
@@ -594,26 +564,26 @@ class MOS6502
 
     private void NOP(ubyte opcode)
     {
-        this.cycles += 2;
+        this.cycleCount += 2;
     }
     //If the negative flag is set then add the relative displacement to the program counter to cause a branch to a new location.
     private void BMI(ubyte opcode)
     {
-        this.cycles += 2;
+        this.cycleCount += 2;
         //Relative only
         ushort finalAddress = relativeAddressMode();
         if(status.n)
         {
-            if((this.pc / 0xFF) == (finalAddress / 0xFF))
+            if((this.registers.pc / 0xFF) == (finalAddress / 0xFF))
             {
-                this.pc = finalAddress;
-                this.cycles++;
+                this.registers.pc = finalAddress;
+                this.cycleCount++;
             }
             else
             {
-                this.pc = finalAddress;
+                this.registers.pc = finalAddress;
                 //goes to a new page
-                this.cycles +=2;
+                this.cycleCount +=2;
             }
         }
     }
@@ -622,30 +592,30 @@ class MOS6502
         auto cpu = new MOS6502;
         cpu.powerOn();
         auto ram = Console.ram;
-        //case 1 forward offset, n flag set, jumps page boundary (4 cycles)
+        //case 1 forward offset, n flag set, jumps page boundary (4 cycleCount)
         cpu.status.n = 1;
         ram.write(cpu.pc, 0x4C); // argument
         auto savedPC = cpu.pc;
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         cpu.BMI(0x30);
         assert(cpu.pc == savedPC + 0x1 + 0x4C);
-        assert(cpu.cycles == savedCycles + 0x4);
+        assert(cpu.cycleCount == savedCycles + 0x4);
         //case 2 forward offset, n flag is clear, (2 cycles)
         cpu.status.n = 0;
         ram.write(cpu.pc, 0x4C); // argument
         savedPC = cpu.pc;
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.BMI(0x30);
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
-        assert(cpu.cycles == savedCycles + 0x2); //(2 cycles)
+        assert(cpu.cycleCount == savedCycles + 0x2); //(2 cycles)
         //case 3 negative offset, n flag is set, (3 cycles)
         cpu.status.n = 1;
         ram.write(cpu.pc, 0xF1); // (-15)
         savedPC = cpu.pc;
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.BMI(0x30);
         assert(cpu.pc == savedPC + 1 - 0xF);
-        assert(cpu.cycles == savedCycles + 0x3);
+        assert(cpu.cycleCount == savedCycles + 0x3);
         //case 4 negative offset, n flag is clear (1 cycle)
         cpu.status.n = 0;
         ram.write(cpu.pc, 0xF1); // argument
@@ -657,21 +627,21 @@ class MOS6502
     //If the zero flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
     private void BNE(ubyte opcode)
     {
-        this.cycles += 2;
+        this.cycleCount += 2;
         //Relative only
         ushort finalAddress = relativeAddressMode();
         if(!status.z)
         {
-            if((this.pc / 0xFF) == (finalAddress / 0xFF))
+            if((this.registers.pc / 0xFF) == (finalAddress / 0xFF))
             {
-                this.pc = finalAddress;
-                this.cycles++;
+                this.registers.pc = finalAddress;
+                this.cycleCount++;
             }
             else
             {
-                this.pc = finalAddress;
+                this.registers.pc = finalAddress;
                 //goes to a new page
-                this.cycles +=2;
+                this.cycleCount +=2;
             }
         }
     }
@@ -684,26 +654,26 @@ class MOS6502
         cpu.status.z = 0;
         ram.write(cpu.pc, 0x4D); // argument
         auto savedPC = cpu.pc;
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         cpu.BNE(0xD0);
         assert(cpu.pc == savedPC + 0x1 + 0x4D);
-        assert(cpu.cycles == savedCycles + 0x4); //branch will cross a page boundary
+        assert(cpu.cycleCount == savedCycles + 0x4); //branch will cross a page boundary
         //case 2 forward offset, z flag is set, (2 cycles)
         cpu.status.z = 1;
         ram.write(cpu.pc, 0x4D); // argument
         savedPC = cpu.pc;
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.BNE(0xD0);
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
-        assert(cpu.cycles == savedCycles + 0x2); //(2 cycles)
+        assert(cpu.cycleCount == savedCycles + 0x2); //(2 cycles)
         //case 3 negative offset, z flag is clear (3 cycles)
         cpu.status.z = 0;
         ram.write(cpu.pc, 0xF1); // (-15)
         savedPC = cpu.pc;
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.BNE(0xD0);
         assert(cpu.pc == savedPC + 1 - 0xF);
-        assert(cpu.cycles == savedCycles + 0x3); //branch doesn't cross page boundary
+        assert(cpu.cycleCount == savedCycles + 0x3); //branch doesn't cross page boundary
         //case 4 negative offset, z flag is set (1 cycle)
         cpu.status.z = 1;
         ram.write(cpu.pc, 0xF1); // argument
@@ -715,21 +685,21 @@ class MOS6502
     //If the negative flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
     private void BPL(ubyte opcode)
     {
-        this.cycles += 2;
+        this.cycleCount += 2;
         //Relative only
         ushort finalAddress = relativeAddressMode();
         if(!status.n)
         {
-            if((this.pc / 0xFF) == (finalAddress / 0xFF))
+            if((this.registers.pc / 0xFF) == (finalAddress / 0xFF))
             {
-                this.pc = finalAddress;
-                this.cycles++;
+                this.registers.pc = finalAddress;
+                this.cycleCount++;
             }
             else
             {
-                this.pc = finalAddress;
+                this.registers.pc = finalAddress;
                 //goes to a new page
-                this.cycles +=2;
+                this.cycleCount +=2;
             }
         }
     }
@@ -742,57 +712,57 @@ class MOS6502
         cpu.status.n = 0;
         ram.write(cpu.pc, 0x4D); // argument
         auto savedPC = cpu.pc;
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         cpu.BPL(0x10);
         assert(cpu.pc == savedPC + 0x1 + 0x4D);
-        assert(cpu.cycles == savedCycles + 0x4); //branch will cross a page boundary
+        assert(cpu.cycleCount == savedCycles + 0x4); //branch will cross a page boundary
         //case 2 forward offset, n flag is set, (2 cycles)
         cpu.status.n = 1;
         ram.write(cpu.pc, 0x4D); // argument
         savedPC = cpu.pc;
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.BPL(0x10);
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
-        assert(cpu.cycles == savedCycles + 0x2); //(2 cycles)
+        assert(cpu.cycleCount == savedCycles + 0x2); //(2 cycles)
         //case 3 negative offset, n flag is clear (3 cycles)
         cpu.status.n = 0;
         ram.write(cpu.pc, 0xF1); // (-15)
         savedPC = cpu.pc;
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.BPL(0x10);
         assert(cpu.pc == savedPC + 1 - 0xF);
-        assert(cpu.cycles == savedCycles + 0x3); //branch doesn't cross page boundary
+        assert(cpu.cycleCount == savedCycles + 0x3); //branch doesn't cross page boundary
         //case 4 negative offset, n flag is set (2 cycles)
         cpu.status.n = 1;
         ram.write(cpu.pc, 0xF1); // argument
         savedPC = cpu.pc;
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.BPL(0x10);
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
-        assert(cpu.cycles == savedCycles + 0x2);
+        assert(cpu.cycleCount == savedCycles + 0x2);
     }
 
     //forces an interrupt to be fired. the status register is copied to stack and bit 5 of the stored pc on the stack is set to 1
     private void BRK(ubyte opcode)
     {
         //the BRK instruction saves the PC at BRK+2 to stack, so increment PC by 1 to skip next byte
-        this.pc++;
-        pushStack(cast(ubyte)(this.pc >> 8)); //write PC high byte to stack
-        pushStack(cast(ubyte)(this.pc));
+        this.registers.pc++;
+        pushStack(cast(ubyte)(this.registers.pc >> 8)); //write PC high byte to stack
+        pushStack(cast(ubyte)(this.registers.pc));
         StatusRegister brkStatus = this.status;
         //set b flag and write to stack
         brkStatus.b = 1;
         pushStack(brkStatus.value);
         auto irqVectorAddress = Console.ram.read16(this.irqAddress);
-        this.pc = irqVectorAddress; //brk handled similarly to irq
-        this.cycles += 7;
+        this.registers.pc = irqVectorAddress; //brk handled similarly to irq
+        this.cycleCount += 7;
     }
     unittest
     {
         auto cpu = new MOS6502;
         cpu.powerOn();
         auto ram = Console.ram;
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         auto savedPC = cpu.pc;
         auto savedStatus = cpu.status.value;
         ram.write16(cpu.irqAddress, 0x1744); //write interrupt handler address
@@ -801,7 +771,7 @@ class MOS6502
         cpu.BRK(0);
         assert(cpu.popStack() == (savedStatus | 0b10000)); //check status registers
         ushort previousPC = cpu.popStack() | (cpu.popStack() << 8); //verify pc write
-        assert(cpu.cycles == savedCycles + 7);
+        assert(cpu.cycleCount == savedCycles + 7);
         assert(cpu.pc == 0x1744);
         assert(previousPC == savedPC + 2);
     }
@@ -809,21 +779,21 @@ class MOS6502
     //If the overflow flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
     private void BVC(ubyte opcode)
     {
-        this.cycles += 2;
+        this.cycleCount += 2;
         //Relative only
         ushort finalAddress = relativeAddressMode();
         if(!status.v)
         {
-            if((this.pc / 0xFF) == (finalAddress / 0xFF))
+            if((this.registers.pc / 0xFF) == (finalAddress / 0xFF))
             {
-                this.pc = finalAddress;
-                this.cycles++;
+                this.registers.pc = finalAddress;
+                this.cycleCount++;
             }
             else
             {
-                this.pc = finalAddress;
+                this.registers.pc = finalAddress;
                 //goes to a new page
-                this.cycles +=2;
+                this.cycleCount +=2;
             }
         }
     }
@@ -836,54 +806,54 @@ class MOS6502
         cpu.status.v = 0;
         ram.write(cpu.pc, 0x5D); // argument
         auto savedPC = cpu.pc;
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         cpu.BVC(0x50);
         assert(cpu.pc == savedPC + 0x1 + 0x5D);
-        assert(cpu.cycles == savedCycles + 0x4); //branch will cross a page boundary
+        assert(cpu.cycleCount == savedCycles + 0x4); //branch will cross a page boundary
         //case 2 forward offset, v flag is set, (2 cycles)
         cpu.status.v = 1;
         ram.write(cpu.pc, 0x4D); // argument
         savedPC = cpu.pc;
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.BVC(0x50);
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
-        assert(cpu.cycles == savedCycles + 0x2); //(2 cycles)
+        assert(cpu.cycleCount == savedCycles + 0x2); //(2 cycles)
         //case 3 negative offset, v flag is clear (3 cycles)
         cpu.status.v = 0;
         ram.write(cpu.pc, 0xF1); // (-15)
         savedPC = cpu.pc;
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.BVC(0x50);
         assert(cpu.pc == savedPC + 1 - 0xF);
-        assert(cpu.cycles == savedCycles + 0x3); //branch doesn't cross page boundary
+        assert(cpu.cycleCount == savedCycles + 0x3); //branch doesn't cross page boundary
         //case 4 negative offset, v flag is set (2 cycles)
         cpu.status.v = 1;
         ram.write(cpu.pc, 0xF1); // argument
         savedPC = cpu.pc;
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.BVC(0x50);
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
-        assert(cpu.cycles == savedCycles + 0x2);
+        assert(cpu.cycleCount == savedCycles + 0x2);
     }
 
     //If the overflow flag is set then add the relative displacement to the program counter to cause a branch to a new location.
     private void BVS(ubyte opcode)
     {
-        this.cycles += 2;
+        this.cycleCount += 2;
         //Relative only
         ushort finalAddress = relativeAddressMode();
         if(status.v)
         {
-            if((this.pc / 0xFF) == (finalAddress / 0xFF))
+            if((this.registers.pc / 0xFF) == (finalAddress / 0xFF))
             {
-                this.pc = finalAddress;
-                this.cycles++;
+                this.registers.pc = finalAddress;
+                this.cycleCount++;
             }
             else
             {
-                this.pc = finalAddress;
+                this.registers.pc = finalAddress;
                 //goes to a new page
-                this.cycles +=2;
+                this.cycleCount +=2;
             }
         }
     }
@@ -896,26 +866,26 @@ class MOS6502
         cpu.status.v = 1;
         ram.write(cpu.pc, 0x5C); // argument
         auto savedPC = cpu.pc;
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         cpu.BVS(0x70);
         assert(cpu.pc == savedPC + 0x1 + 0x5C);
-        assert(cpu.cycles == savedCycles + 0x4);
+        assert(cpu.cycleCount == savedCycles + 0x4);
         //case 2 forward offset, v flag is clear, (2 cycles)
         cpu.status.v = 0;
         ram.write(cpu.pc, 0x4C); // argument
         savedPC = cpu.pc;
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.BVS(0x70);
         assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
-        assert(cpu.cycles == savedCycles + 0x2); //(2 cycles)
+        assert(cpu.cycleCount == savedCycles + 0x2); //(2 cycles)
         //case 3 negative offset, v flag is set, (3 cycles)
         cpu.status.v = 1;
         ram.write(cpu.pc, 0xF1); // (-15)
         savedPC = cpu.pc;
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.BVS(0x70);
         assert(cpu.pc == savedPC + 1 - 0xF);
-        assert(cpu.cycles == savedCycles + 0x3);
+        assert(cpu.cycleCount == savedCycles + 0x3);
         //case 4 negative offset, v flag is clear (1 cycle)
         cpu.status.v = 0;
         ram.write(cpu.pc, 0xF1); // argument
@@ -928,138 +898,139 @@ class MOS6502
     private void CLC(ubyte opcode)
     {
         this.status.c = 0;
-        this.cycles += 2;
+        this.cycleCount += 2;
     }
     unittest
     {
         auto cpu = new MOS6502;
         cpu.powerOn();
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         cpu.status.c = 1;
         cpu.CLC(0x18);
         assert(cpu.status.c == 0);
-        assert(cpu.cycles == savedCycles + 2);
+        assert(cpu.cycleCount == savedCycles + 2);
     }
 
     //Clear decimal mode flag
     private void CLD(ubyte opcode)
+
     {
         this.status.d = 0;
-        this.cycles += 2;
+        this.cycleCount += 2;
     }
     unittest
     {
         auto cpu = new MOS6502;
         cpu.powerOn();
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         cpu.status.d = 1;
         cpu.CLD(0xD8);
         assert(cpu.status.d == 0);
-        assert(cpu.cycles == savedCycles + 2);
+        assert(cpu.cycleCount == savedCycles + 2);
     }
 
     //Clear interrupt disable flag
     private void CLI(ubyte opcode)
     {
         this.status.i = 0;
-        this.cycles += 2;
+        this.cycleCount += 2;
     }
     unittest
     {
         auto cpu = new MOS6502;
         cpu.powerOn();
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         cpu.status.i = 1;
         cpu.CLI(0x78);
         assert(cpu.status.i == 0);
-        assert(cpu.cycles == savedCycles + 2);
+        assert(cpu.cycleCount == savedCycles + 2);
     }
 
     //Clear overflow flag
     private void CLV(ubyte opcode)
     {
         this.status.v = 0;
-        this.cycles += 2;
+        this.cycleCount += 2;
     }
     unittest
     {
         auto cpu = new MOS6502;
         cpu.powerOn();
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         cpu.status.v = 1;
         cpu.CLV(0xB8);
         assert(cpu.status.v == 0);
-        assert(cpu.cycles == savedCycles + 2);
+        assert(cpu.cycleCount == savedCycles + 2);
     }
 
     //Decrements the X register by 1
     private void DEX(ubyte opcode)
     {
-        this.x--;
-        checkAndSetNegative(this.x);
-        checkAndSetZero(this.x);
-        this.cycles += cycleCountTable[opcode];
+        this.registers.x--;
+        checkAndSetNegative(this.registers.x);
+        checkAndSetZero(this.registers.x);
+        this.cycleCount += cycleCountTable[opcode];
     }
     unittest //0xCA, 1 byte, 2 cycles
     {
         auto cpu = new MOS6502;
         cpu.powerOn();
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         //case 1, x register is 0 and decremented to negative value
         cpu.x = 0;
         cpu.DEX(0xCA);
         assert(cpu.status.n == 1);
         assert(cpu.status.z == 0);
-        assert(cpu.cycles == savedCycles + 2);
+        assert(cpu.cycleCount == savedCycles + 2);
         //case 2, x register is 1 and decremented to zero
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.x = 0;
         cpu.DEX(0xCA);
         assert(cpu.status.n == 1);
         assert(cpu.status.z == 0);
-        assert(cpu.cycles == savedCycles + 2);
+        assert(cpu.cycleCount == savedCycles + 2);
         //case 3, x register is positive and decremented to positive value
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.x = 10;
         cpu.DEX(0xCA);
         assert(cpu.status.n == 0);
         assert(cpu.status.z == 0);
-        assert(cpu.cycles == savedCycles + 2);
+        assert(cpu.cycleCount == savedCycles + 2);
     }
 
     //Decrements the Y register by 1
     private void DEY(ubyte opcode)
     {
-        this.y--;
-        checkAndSetNegative(this.y);
-        checkAndSetZero(this.y);
-        this.cycles += cycleCountTable[opcode];
+        this.registers.y--;
+        checkAndSetNegative(this.registers.y);
+        checkAndSetZero(this.registers.y);
+        this.cycleCount += cycleCountTable[opcode];
     }
     unittest //0x88, 1 byte, 2 cycles
     {
         auto cpu = new MOS6502;
         cpu.powerOn();
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         //case 1, y register is 0 and decremented to negative value
         cpu.y = 0;
         cpu.DEY(0x88);
         assert(cpu.status.n == 1);
         assert(cpu.status.z == 0);
-        assert(cpu.cycles == savedCycles + 2);
+        assert(cpu.cycleCount == savedCycles + 2);
         //case 2, y register is 1 and decremented to zero
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.y = 0;
         cpu.DEY(0x88);
         assert(cpu.status.n == 1);
         assert(cpu.status.z == 0);
-        assert(cpu.cycles == savedCycles + 2);
+        assert(cpu.cycleCount == savedCycles + 2);
         //case 3, y register is positive and decremented to positive value
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.y = 45;
         cpu.DEY(0x88);
         assert(cpu.status.n == 0);
         assert(cpu.status.z == 0);
-        assert(cpu.cycles == savedCycles + 2);
+        assert(cpu.cycleCount == savedCycles + 2);
     }
 
     //An exclusive OR is performed, bit by bit, on the accumulator contents using the contents of a byte of memory.
@@ -1070,7 +1041,7 @@ class MOS6502
 
         auto ram = Console.ram;
 
-        ushort a = this.a; // a = accumulator value
+        ushort a = this.registers.a; // a = accumulator value
         ushort m; // m = operand
 
         if (addressMode == AddressingModeType.IMMEDIATE)
@@ -1087,15 +1058,15 @@ class MOS6502
             {
                 if (pageBoundaryWasCrossed)
                 {
-                    this.cycles++;
+                    this.cycleCount++;
                 }
             }
         }
 
-        this.a = cast(ubyte)(a ^ m);
-        checkAndSetZero(this.a);
-        checkAndSetNegative(this.a);
-        this.cycles += cycleCountTable[opcode];
+        this.registers.a = cast(ubyte)(a ^ m);
+        checkAndSetZero(this.registers.a);
+        checkAndSetNegative(this.registers.a);
+        this.cycleCount += cycleCountTable[opcode];
     }
     /*
         Immediate 0x49 2
@@ -1118,34 +1089,34 @@ class MOS6502
         auto ram = Console.ram;
         cpu.powerOn();
         //Case 1 mode 1, immediate mode no flags set
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         cpu.a = 0xF;
         ram.write(cpu.pc, 0xB);
         cpu.EOR(0x49); //EOR immediate
         assert(cpu.a == 4);
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 0);
-        assert(cpu.cycles == savedCycles + 2);
+        assert(cpu.cycleCount == savedCycles + 2);
         //Case 2 mode 1, immediate mode negative flag set
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.a = 0xF;
         ram.write(cpu.pc, 0xF0);
         cpu.EOR(0x49); //EOR immediate
         assert(cpu.a == 0xFF);
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 1);
-        assert(cpu.cycles == savedCycles + 2);
+        assert(cpu.cycleCount == savedCycles + 2);
         //Case 3 mode 1, immediate mode zero flag set
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.a = 0xF;
         ram.write(cpu.pc, 0xF);
         cpu.EOR(0x49); //EOR immediate
         assert(cpu.a == 0);
         assert(cpu.status.z == 1);
         assert(cpu.status.n == 0);
-        assert(cpu.cycles == savedCycles + 2);
+        assert(cpu.cycleCount == savedCycles + 2);
         //Case 4 mode 2, zero page mode no flags set
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.a = 0xF;
         ram.write(cpu.pc, 0); //write address 0 to offset to zero page address 0
         ram.write(0, 0xB); //write to zero page address 0
@@ -1153,9 +1124,9 @@ class MOS6502
         assert(cpu.a == 4);
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 0);
-        assert(cpu.cycles == savedCycles + 3);
+        assert(cpu.cycleCount == savedCycles + 3);
         //Case 5 mode 3, zero page indexed no flags set
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.a = 0xF;
         ram.write(cpu.pc, 2); //write address 2 to offset to zero page address 0
         cpu.x = 4; //zero page address offset of 4
@@ -1164,9 +1135,9 @@ class MOS6502
         assert(cpu.a == 4);
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 0);
-        assert(cpu.cycles == savedCycles + 4);
+        assert(cpu.cycleCount == savedCycles + 4);
         //Case 6 mode 4, absolute zero flag set
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.a = 0xF;
         ram.write16(cpu.pc, 0x1234); //write address 0x1234 to PC
         ram.write(0x1234, 0xF); //write operand m to address 0x1234
@@ -1174,9 +1145,9 @@ class MOS6502
         assert(cpu.a == 0);
         assert(cpu.status.z == 1);
         assert(cpu.status.n == 0);
-        assert(cpu.cycles == savedCycles + 4);
+        assert(cpu.cycleCount == savedCycles + 4);
         //Case 7 mode 5, absolute indexed x
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.a = 0xF;
         ram.write16(cpu.pc, 0x1234); //write address 0x1234 to PC
         cpu.x = 9;
@@ -1185,9 +1156,9 @@ class MOS6502
         assert(cpu.a == 0);
         assert(cpu.status.z == 1);
         assert(cpu.status.n == 0);
-        assert(cpu.cycles == savedCycles + 4);
+        assert(cpu.cycleCount == savedCycles + 4);
         //Case 8 mode 6, absolute indexed y, page boundary crossed
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.a = 0xF;
         ram.write16(cpu.pc, 0x1234); //write address 0x1234 to PC
         cpu.y = 0xff;
@@ -1196,9 +1167,9 @@ class MOS6502
         assert(cpu.a == 0);
         assert(cpu.status.z == 1);
         assert(cpu.status.n == 0);
-        assert(cpu.cycles == savedCycles + 5);
+        assert(cpu.cycleCount == savedCycles + 5);
         //Case 9 mode 7, indexed indirect (target =
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.a = 0xF;
         cpu.x = 4; //X register is 4. This will be added to the operand m (0xA in next line)
         ram.write(cpu.pc, 0xA); //operand is 0xA
@@ -1208,7 +1179,7 @@ class MOS6502
         assert(cpu.a == 0xFF);
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 1);
-        assert(cpu.cycles == savedCycles + 6);
+        assert(cpu.cycleCount == savedCycles + 6);
         //case 10 mode 8, indirect indexed
     }
 
@@ -1229,7 +1200,7 @@ class MOS6502
         ram.write(a, m);
         checkAndSetZero(m);
         checkAndSetNegative(m);
-        this.cycles += cycleCountTable[opcode];
+        this.cycleCount += cycleCountTable[opcode];
     }
     /*  Address Mode    Syntax        Opcode  I-Len  T-Cnt
         Zero Page       INC $A5        $E6      2     5
@@ -1243,34 +1214,34 @@ class MOS6502
         auto ram = Console.ram;
         cpu.powerOn();
         //Case 1 mode 1, zero page, n is set, z is unset
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         ram.write(cpu.pc, 5); //zero page address 5
         ram.write(5, 0x7F); //0x7F + 1 = 0x80, n flag (bit 7) gets set
         cpu.INC(0xE6);
         assert(ram.read(5) == cast(ubyte)(0x7F + 1));
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 1);
-        assert(cpu.cycles == savedCycles + 5);
+        assert(cpu.cycleCount == savedCycles + 5);
         //Case 2 mode 1, zero page, z is set, n is unset
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         ram.write(cpu.pc, 5); //zero page address 5
         ram.write(5, 0xFF); //0xFF + 1 = 0x00, z flag is set since result is zero
         cpu.INC(0xE6);
         assert(ram.read(5) == cast(ubyte)(0xFF + 1));
         assert(cpu.status.z == 1);
         assert(cpu.status.n == 0);
-        assert(cpu.cycles == savedCycles + 5);
+        assert(cpu.cycleCount == savedCycles + 5);
         //Case 3 mode 1, zero page, n is unset, z is unset
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         ram.write(cpu.pc, 5); //zero page address 5
         ram.write(5, 0x70); //0x70 + 1 = 0x70, z and n flags unset
         cpu.INC(0xE6);
         assert(ram.read(5) == cast(ubyte)(0x70 + 1));
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 0);
-        assert(cpu.cycles == savedCycles + 5);
+        assert(cpu.cycleCount == savedCycles + 5);
         //Case 4 mode 2, zero page indexed, n is set z is unset
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         ram.write(cpu.pc, 5); //zero page address 5
         cpu.x = 6; //index is 6
         ram.write(5+6, 0x7F); //0x7F + 1 = 0x80, n flag (bit 7) gets set
@@ -1278,18 +1249,18 @@ class MOS6502
         assert(ram.read(5+6) == cast(ubyte)(0x7F + 1));
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 1);
-        assert(cpu.cycles == savedCycles + 6);
+        assert(cpu.cycleCount == savedCycles + 6);
         //Case 5 mode 3, absolute, z is set, n is unset
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         ram.write16(cpu.pc, 0x1234); //Absolute address 0x1234
         ram.write(0x1234, 0xFF); //0xFF + 1 = 0x00, z flag is set since result is zero
         cpu.INC(0xEE);
         assert(ram.read(0x1234) == cast(ubyte)(0xFF + 1));
         assert(cpu.status.z == 1);
         assert(cpu.status.n == 0);
-        assert(cpu.cycles == savedCycles + 6);
+        assert(cpu.cycleCount == savedCycles + 6);
         //Case 6 mode 4, absolute indexed, n is set, z is unset
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         ram.write16(cpu.pc, 0x1234); //Absolute address 0x1234
         cpu.x = 8; //index is 8
         ram.write(0x1234 + 8, 0x7F); //0x7F + 1 = 0x80, n flag (bit 7) gets set
@@ -1297,7 +1268,7 @@ class MOS6502
         assert(ram.read(0x1234 + 8) == cast(ubyte)(0x7F + 1));
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 1);
-        assert(cpu.cycles == savedCycles + 7);
+        assert(cpu.cycleCount == savedCycles + 7);
     }
 
     //Increment X register by 1
@@ -1305,10 +1276,10 @@ class MOS6502
     private void INX(ubyte opcode)
     {
         auto instructionName = "INX";
-        auto m = cast(ubyte)(++this.x);
+        auto m = cast(ubyte)(++this.registers.x);
         checkAndSetZero(m);
         checkAndSetNegative(m);
-        this.cycles += cycleCountTable[opcode];
+        this.cycleCount += cycleCountTable[opcode];
     }
     /*  Address Mode    Syntax        Opcode  I-Len  T-Cnt
         Implied         INX            $E8      1     2
@@ -1319,21 +1290,21 @@ class MOS6502
         auto ram = Console.ram;
         cpu.powerOn();
         //Case 1 mode 1, implied, n is set
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         cpu.x = 0x7F;
         cpu.INX(0xE8);
         assert(cpu.x == cast(ubyte)(0x7F + 1));
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 1);
-        assert(cpu.cycles == savedCycles + 2);
+        assert(cpu.cycleCount == savedCycles + 2);
         //Case 2 mode 1, implied, z is set
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.x = 0xFF;
         cpu.INX(0xE8);
         assert(cpu.x == cast(ubyte)(0xFF + 1));
         assert(cpu.status.z == 1);
         assert(cpu.status.n == 0);
-        assert(cpu.cycles == savedCycles + 2);
+        assert(cpu.cycleCount == savedCycles + 2);
 
     }
 
@@ -1342,10 +1313,10 @@ class MOS6502
     private void INY(ubyte opcode)
     {
         auto instructionName = "INY";
-        auto m = cast(ubyte)(++this.y);
+        auto m = cast(ubyte)(++this.registers.y);
         checkAndSetZero(m);
         checkAndSetNegative(m);
-        this.cycles += cycleCountTable[opcode];
+        this.cycleCount += cycleCountTable[opcode];
     }
     /*  Address Mode    Syntax        Opcode  I-Len  T-Cnt
         Implied         INY            $C8      1     2
@@ -1357,21 +1328,21 @@ class MOS6502
         auto ram = Console.ram;
         cpu.powerOn();
         //Case 1 mode 1, implied, n is set
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         cpu.y = 0x7F;
         cpu.INY(0xC8);
         assert(cpu.y == cast(ubyte)(0x7F + 1));
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 1);
-        assert(cpu.cycles == savedCycles + 2);
+        assert(cpu.cycleCount == savedCycles + 2);
         //Case 2 mode 1, implied, z is set
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.y = 0xFF;
         cpu.INY(0xC8);
         assert(cpu.y == cast(ubyte)(0xFF + 1));
         assert(cpu.status.z == 1);
         assert(cpu.status.n == 0);
-        assert(cpu.cycles == savedCycles + 2);
+        assert(cpu.cycleCount == savedCycles + 2);
 
     }
 
@@ -1379,11 +1350,11 @@ class MOS6502
     private void PHA(ubyte opcode)
     {
         auto instructionName = "PHA";
-        ushort stackAddress = cast(ushort)(this.stackBaseAddress + this.sp);
+        ushort stackAddress = cast(ushort)(this.stackBaseAddress + this.registers.sp);
         auto ram = Console.ram;
-        ram.write(stackAddress, this.a);
-        this.sp = cast(ubyte)(--this.sp);
-        this.cycles += cycleCountTable[opcode];
+        ram.write(stackAddress, this.registers.a);
+        this.registers.sp = cast(ubyte)(--this.registers.sp);
+        this.cycleCount += cycleCountTable[opcode];
     }
     /*  Address Mode    Syntax        Opcode  I-Len  T-Cnt
         Implied         PHA            $48      1     3
@@ -1395,32 +1366,32 @@ class MOS6502
         auto savedSp = cpu.sp;
         cpu.powerOn();
         //Case 1 mode 1, sp = FF
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         cpu.sp = 0xFF;
         cpu.a = 0xAB;
         cpu.PHA(0x48);
         assert(cpu.sp == 0xFE);
         assert(ram.read(cast(ushort)(cpu.stackBaseAddress + cpu.sp + 1)) == 0xAB);
-        assert(cpu.cycles == savedCycles + 3);
+        assert(cpu.cycleCount == savedCycles + 3);
         //Case 2 mode 1, sp = 0, wraparound to 0xFF
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.sp = 0x00;
         cpu.a = 0xCD;
         cpu.PHA(0x48);
         assert(cpu.sp == 0xFF);
         assert(ram.read(cast(ushort)(cpu.stackBaseAddress + cast(ubyte)(cpu.sp + 1))) == 0xCD);
-        assert(cpu.cycles == savedCycles + 3);
+        assert(cpu.cycleCount == savedCycles + 3);
     }
 
     //Pushes status register onto stacks, decrements SP by 1
     private void PHP(ubyte opcode)
     {
         auto instructionName = "PHP";
-        ushort stackAddress = cast(ushort)(this.stackBaseAddress + this.sp);
+        ushort stackAddress = cast(ushort)(this.stackBaseAddress + this.registers.sp);
         auto ram = Console.ram;
         ram.write(stackAddress, this.status.value);
-        this.sp = cast(ubyte)(--this.sp);
-        this.cycles += cycleCountTable[opcode];
+        this.registers.sp = cast(ubyte)(--this.registers.sp);
+        this.cycleCount += cycleCountTable[opcode];
     }
     /*  Address Mode    Syntax        Opcode  I-Len  T-Cnt
         Implied         PHP            $08      1     3
@@ -1432,22 +1403,22 @@ class MOS6502
         auto savedSp = cpu.sp;
         cpu.powerOn();
         //Case 1 mode 1, sp = FF
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         cpu.sp = 0xFF;
         cpu.status.value = 0xAB;
         cpu.PHP(0x08);
         assert(cpu.sp == 0xFE);
         assert(ram.read(cast(ushort)(cpu.stackBaseAddress + cpu.sp + 1)) == 0xAB);
-        assert(cpu.cycles == savedCycles + 3);
+        assert(cpu.cycleCount == savedCycles + 3);
         //Case 2 mode 1, sp = 0, wraparound to 0xFF
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.sp = 0x00;
         cpu.status.value = 0xCD;
         assert(cpu.status.value == (0xCD | 0b0010_0000)); //writing to status register will always cause bit 6 to be set
         cpu.PHP(0x08);
         assert(cpu.sp == 0xFF);
         assert(ram.read(cast(ushort)(cpu.stackBaseAddress + cast(ubyte)(cpu.sp + 1))) == (0xCD | 0b0010_0000));
-        assert(cpu.cycles == savedCycles + 3);
+        assert(cpu.cycleCount == savedCycles + 3);
     }
 
     //Pulls/pops A off the stacks (and into A), increments SP by 1
@@ -1455,13 +1426,13 @@ class MOS6502
     private void PLA(ubyte opcode)
     {
         auto instructionName = "PLA";
-        this.sp = cast(ubyte)(++this.sp);
-        ushort stackAddress = cast(ushort)(this.stackBaseAddress + this.sp);
+        this.registers.sp = cast(ubyte)(++this.registers.sp);
+        ushort stackAddress = cast(ushort)(this.stackBaseAddress + this.registers.sp);
         auto ram = Console.ram;
-        this.a = ram.read(stackAddress);
-        checkAndSetZero(this.a);
-        checkAndSetNegative(this.a);
-        this.cycles += cycleCountTable[opcode];
+        this.registers.a = ram.read(stackAddress);
+        checkAndSetZero(this.registers.a);
+        checkAndSetNegative(this.registers.a);
+        this.cycleCount += cycleCountTable[opcode];
     }
     /*  Address Mode    Syntax        Opcode  I-Len  T-Cnt
         Implied         PLA            $68      1     4
@@ -1473,7 +1444,7 @@ class MOS6502
         auto savedSp = cpu.sp;
         cpu.powerOn();
         //Case 1 mode 1, sp = FF
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         cpu.sp = 0xFF;
         cpu.a = 0x00;
         cpu.pushStack(0xAB);
@@ -1481,9 +1452,9 @@ class MOS6502
         cpu.PLA(0x68);
         assert(cpu.sp == 0xFF);
         assert(cpu.a == 0xAB);
-        assert(cpu.cycles == savedCycles + 4);
+        assert(cpu.cycleCount == savedCycles + 4);
         //Case 2 mode 1, sp = 0, wraparound to 0xFF and then back to 0
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.sp = 0x00;
         cpu.a = 0x00;
         cpu.pushStack(0xCD);
@@ -1491,18 +1462,18 @@ class MOS6502
         cpu.PLA(0x68);
         assert(cpu.sp == 0x00);
         assert(cpu.a == 0xCD);
-        assert(cpu.cycles == savedCycles + 4);
+        assert(cpu.cycleCount == savedCycles + 4);
     }
 
     //Pulls/pops status register off the stacks (and into P), increments SP by 1
     private void PLP(ubyte opcode)
     {
         auto instructionName = "PLP";
-        this.sp = cast(ubyte)(++this.sp);
-        ushort stackAddress = cast(ushort)(this.stackBaseAddress + this.sp);
+        this.registers.sp = cast(ubyte)(++this.registers.sp);
+        ushort stackAddress = cast(ushort)(this.stackBaseAddress + this.registers.sp);
         auto ram = Console.ram;
         this.status.value = ram.read(stackAddress);
-        this.cycles += cycleCountTable[opcode];
+        this.cycleCount += cycleCountTable[opcode];
     }
     /*  Address Mode    Syntax        Opcode  I-Len  T-Cnt
         Implied         PLP            $28      1     4
@@ -1514,7 +1485,7 @@ class MOS6502
         auto savedSp = cpu.sp;
         cpu.powerOn();
         //Case 1 mode 1, sp = FF
-        auto savedCycles = cpu.cycles;
+        auto savedCycles = cpu.cycleCount;
         cpu.sp = 0xFF;
         cpu.status.value = 0x00;
         cpu.pushStack(0xAB);
@@ -1522,9 +1493,9 @@ class MOS6502
         cpu.PLP(0x28);
         assert(cpu.sp == 0xFF);
         assert(cpu.status.value == 0xAB);
-        assert(cpu.cycles == savedCycles + 4);
+        assert(cpu.cycleCount == savedCycles + 4);
         //Case 2 mode 1, sp = 0, wraparound to 0xFF and then back to 0
-        savedCycles = cpu.cycles;
+        savedCycles = cpu.cycleCount;
         cpu.sp = 0x00;
         cpu.status.value = 0x00;
         cpu.pushStack(0xCD);
@@ -1532,15 +1503,15 @@ class MOS6502
         cpu.PLP(0x28);
         assert(cpu.sp == 0x00);
         assert(cpu.status.value == (0xCD | 0b0010_0000)); //writing to status register will always cause bit 6 to be set
-        assert(cpu.cycles == savedCycles + 4);
+        assert(cpu.cycleCount == savedCycles + 4);
     }
 
     //***** Addressing Modes *****//
     // Immediate address mode is the operand is a 1 byte constant following the
     // opcode so read the constant, increment pc by 1 and return it
-    ushort immediateAddressMode(string instruction = "", ubyte opcode = 0)
+    private ushort immediateAddressMode(string instruction = "", ubyte opcode = 0)
     {
-        return Console.ram.read(this.pc++);
+        return Console.ram.read(this.registers.pc++);
     }
     unittest
     {
@@ -1566,9 +1537,9 @@ class MOS6502
      * operand, offset it by the value in Y register
      * and correctly round it and return it as a zero page memory address */
 
-    ushort zeroPageAddressMode(string instruction, ubyte opcode)
+    private ushort zeroPageAddressMode(string instruction, ubyte opcode)
     {
-        ubyte address = Console.ram.read(this.pc++);
+        ubyte address = Console.ram.read(this.registers.pc++);
         ubyte offset = decodeIndex(instruction, opcode);
         ushort finalAddress = cast(ubyte)(address + offset);
         return finalAddress;
@@ -1613,7 +1584,7 @@ class MOS6502
     /*ushort zeroPageIndexedAddressMode(string instruction, ubyte opcode)
     {
         ubyte indexValue = decodeIndex(instruction, opcode);
-        ubyte address = Console.ram.read(this.pc++);
+        ubyte address = Console.ram.read(this.registers.pc++);
         address += indexValue;
         return address;
     } */
@@ -1625,13 +1596,13 @@ class MOS6502
      * signed byte. the offset is calculated from the position after the
      * operand so it is in actuality -126 to +129 from where the opcode
      * resides */
-    ushort relativeAddressMode(string instruction = "", ubyte opcode = 0)
+    private ushort relativeAddressMode(string instruction = "", ubyte opcode = 0)
     {
-        byte offset = cast(byte)(Console.ram.read(this.pc++));
-        //int finalAddress = (cast(int)this.pc + offset);
-        ushort finalAddress = cast(ushort)((this.pc) + offset);
+        byte offset = cast(byte)(Console.ram.read(this.registers.pc++));
+        //int finalAddress = (cast(int)this.registers.pc + offset);
+        ushort finalAddress = cast(ushort)((this.registers.pc) + offset);
 
-        checkPageCrossed(this.pc, finalAddress);
+        checkPageCrossed(this.registers.pc, finalAddress);
         return cast(ushort)(finalAddress);
     }
     unittest
@@ -1675,14 +1646,14 @@ class MOS6502
     }
 
     //absolute address mode reads 16 bytes so increment pc by 2
-    ushort absoluteAddressMode(string instruction, ubyte opcode)
+    private ushort absoluteAddressMode(string instruction, ubyte opcode)
     {
-        ushort address = Console.ram.read16(this.pc);
+        ushort address = Console.ram.read16(this.registers.pc);
         ubyte offset = decodeIndex(instruction, opcode);
         ushort finalAddress = cast(ushort)(address + offset);
 
         checkPageCrossed(address, finalAddress);
-        this.pc += 0x2;
+        this.registers.pc += 0x2;
         return finalAddress;
     }
     unittest
@@ -1713,13 +1684,13 @@ class MOS6502
     }
 
     /* absolute indexed address mode reads 16 bytes so increment pc by 2
-    ushort absoluteIndexedAddressMode(string instruction, ubyte opcode)
+    private ushort absoluteIndexedAddressMode(string instruction, ubyte opcode)
     {
         ubyte indexType = addressModeTable[opcode] & 0xF;
         ubyte indexValue = decodeIndex(instruction, opcode);
 
-        ushort data = Console.ram.read16(this.pc);
-        this.pc += 0x2;
+        ushort data = Console.ram.read16(this.registers.pc);
+        this.registers.pc += 0x2;
         data += indexValue;
         return data;
     }
@@ -1740,12 +1711,12 @@ class MOS6502
         assert(cpu.pc == 0xC002);
     } */
 
-    ushort  indirectAddressMode(string instruction = "", ubyte opcode = 0)
+    private ushort  indirectAddressMode(string instruction = "", ubyte opcode = 0)
     {
-        ushort effectiveAddress = Console.ram.read16(this.pc);
-        ushort returnAddress = Console.ram.buggyRead16(effectiveAddress); // does not increment this.pc
+        ushort effectiveAddress = Console.ram.read16(this.registers.pc);
+        ushort returnAddress = Console.ram.buggyRead16(effectiveAddress); // does not increment this.registers.pc
 
-        this.pc += 0x2;  // increment program counter for first read16 op
+        this.registers.pc += 0x2;  // increment program counter for first read16 op
         return returnAddress;
     }
     unittest
@@ -1783,10 +1754,10 @@ class MOS6502
     // to get the final memory address and returned
     // This mode does zero page wrapping
     // Additionally it will read the target address as 16 bytes
-    ushort indexedIndirectAddressMode(string instruction = "", ubyte opcode = 0)
+    private ushort indexedIndirectAddressMode(string instruction = "", ubyte opcode = 0)
     {
-        ubyte zeroPageAddress = Console.ram.read(this.pc++);
-        ubyte targetAddress = cast(ubyte)(zeroPageAddress + this.x);
+        ubyte zeroPageAddress = Console.ram.read(this.registers.pc++);
+        ubyte targetAddress = cast(ubyte)(zeroPageAddress + this.registers.x);
         //return Console.ram.read16(cast(ushort)targetAddress);
         return targetAddress;
     }
@@ -1819,11 +1790,11 @@ class MOS6502
     // operand, look up a 16 bit value in the zero page, add the index to that
     // and return it as the final address. note that there is no zero page
     // address wrapping
-    ushort indirectIndexedAddressMode(string instruction = "", ubyte opcode = 0)
+    private ushort indirectIndexedAddressMode(string instruction = "", ubyte opcode = 0)
     {
-        ubyte zeroPageAddress = Console.ram.read(this.pc++);
+        ubyte zeroPageAddress = Console.ram.read(this.registers.pc++);
         ushort targetAddress = Console.ram.read16(cast(ushort) zeroPageAddress);
-        return cast(ushort) (targetAddress + this.y);
+        return cast(ushort) (targetAddress + this.registers.y);
     }
     unittest
     {
@@ -1851,39 +1822,39 @@ class MOS6502
         assert(address == cast(ushort)(0xFFFE + 7));
     }
 
-    void setNmi()
+    private void setNmi()
     {
         nmi = true;
     }
 
-    void setReset()
+    private void setReset()
     {
         rst = true;
     }
 
-    void setIrq()
+    private void setIrq()
     {
         irq = true;
     }
 
     //pushes a byte onto the stack, decrements stack pointer
-    void pushStack(ubyte data)
+    private void pushStack(ubyte data)
     {
-        ushort stackAddress = cast(ushort)(this.stackBaseAddress + this.sp);
+        ushort stackAddress = cast(ushort)(this.stackBaseAddress + this.registers.sp);
         //add some logic here to possibly check for stack overflow conditions
         Console.ram.write(stackAddress, data);
-        this.sp--;
+        this.registers.sp--;
     }
     unittest
     {
     }
     //increments stack pointer and returns the byte from the top of the stack
-    ubyte popStack()
+    private ubyte popStack()
     {
         //remember sp points to the next EMPTY stack location so we increment SP first
         //to get to the last stack value
-        this.sp++;
-        ushort stackAddress = cast(ushort)(this.stackBaseAddress + this.sp);
+        this.registers.sp++;
+        ushort stackAddress = cast(ushort)(this.stackBaseAddress + this.registers.sp);
         return Console.ram.read(stackAddress);
     }
     unittest
@@ -1943,6 +1914,7 @@ class MOS6502
     unittest
     {
         auto cpu = new MOS6502;
+
         cpu.checkAndSetNegative(5);
         assert(cpu.status.n == 0);
         cpu.checkAndSetNegative(-5);
@@ -1969,81 +1941,101 @@ class MOS6502
         cpu.checkAndSetZero(0);
         assert(cpu.status.z == 1);
     }
-    private
+
+    private enum AddressingModeType : ubyte
     {
-        ushort pc; // program counter
-        ubyte a;   // accumulator
-        ubyte x;   // x index
-        ubyte y;   // y index
-        ubyte sp;  // stack pointer
-        ulong cycles; // total cycles executed
-        bool nmi; // non maskable interrupt line
-        bool rst; // reset interrupt line
-        bool irq; //software interrupt request line
-
-        StatusRegister status;
-        bool pageBoundaryWasCrossed;
-
-        immutable ushort nmiAddress = 0xFFFA;
-        immutable ushort resetAddress = 0xFFFC;
-        immutable ushort irqAddress = 0xFFFE;
-        immutable ushort stackBaseAddress = 0x0100;
-        immutable ushort stackTopAddress = 0x01FF;
-        static immutable ubyte[256] cycleCountTable = [
-
-            // 0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
-            7, 6, 0, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6, // 0
-            2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, // 1
-            6, 6, 0, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6, // 2
-            2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, // 3
-            6, 6, 0, 8, 3, 3, 5, 5, 3, 2, 2, 2, 3, 4, 6, 6, // 4
-            2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, // 5
-            6, 6, 0, 8, 3, 3, 5, 5, 4, 2, 2, 2, 5, 4, 6, 6, // 6
-            2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, // 7
-            2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4, // 8
-            2, 6, 0, 6, 4, 4, 4, 4, 2, 5, 2, 5, 5, 5, 5, 5, // 9
-            2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4, // A
-            2, 5, 0, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4, // B
-            2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, // C
-            2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, // D
-            2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, // E
-            2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7 ]; // F
-
-
-        static immutable ubyte[256] addressModeTable= [
-            //  0      1      2      3      4      5      6      7
-            //  8      9      A      B      C      D      E      F
-            0x01,  0xF2,  0x00,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // 0
-            0x01,  0x10,  0xA0,  0x00,  0xD0,  0xD0,  0xD0,  0xD0, // 0
-            0xC0,  0xF1,  0x00,  0xF1,  0xB1,  0xB1,  0xB1,  0xB1, // 1
-            0x01,  0xD2,  0x00,  0xD2,  0xD1,  0xD1,  0xD1,  0xD1, // 1
-            0xD0,  0xF2,  0x00,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // 2
-            0x01,  0x10,  0xA0,  0x00,  0xD0,  0xD0,  0xD0,  0xD0, // 2
-            0xC2,  0xF1,  0x00,  0xF1,  0xB1,  0xB1,  0xB1,  0xB1, // 3
-            0x01,  0xD2,  0x00,  0xD2,  0xD1,  0xD1,  0xD1,  0xD1, // 3
-            0x01,  0xF1,  0x00,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // 4
-            0x01,  0x10,  0xA0,  0x00,  0xD0,  0xD0,  0xD0,  0xD0, // 4
-            0xC0,  0xF1,  0x00,  0xF1,  0xB1,  0xB1,  0xB1,  0xB1, // 5
-            0x01,  0xD2,  0x00,  0xD2,  0xD1,  0xD1,  0xD1,  0xD1, // 5
-            0xF1,  0xF2,  0x00,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // 6
-            0x01,  0x10,  0xA0,  0x00,  0xF0,  0xD0,  0xD0,  0xD0, // 6
-            0xC0,  0xF1,  0x00,  0xF1,  0xB1,  0xB1,  0xB1,  0xB1, // 7
-            0x01,  0xD2,  0x00,  0xD2,  0xD1,  0xD1,  0xD1,  0xD1, // 7
-            0x00,  0xF2,  0x00,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // 8
-            0x01,  0x00,  0x01,  0x00,  0xD0,  0xD0,  0xD0,  0xD0, // 8
-            0xC0,  0xF1,  0x00,  0xF1,  0xB1,  0xB1,  0xB2,  0xB2, // 9
-            0x01,  0xD2,  0x01,  0x00,  0xD1,  0xD1,  0xD2,  0xD2, // 9
-            0x10,  0xF2,  0x10,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // A
-            0x01,  0x10,  0x01,  0x00,  0xD0,  0xD0,  0xD0,  0xD0, // A
-            0xC0,  0xF1,  0x00,  0xF1,  0xB1,  0xB1,  0xB2,  0xB2, // B
-            0x01,  0xD2,  0x01,  0xD2,  0xD1,  0xD1,  0xD2,  0xD2, // B
-            0x10,  0xF1,  0x00,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // C
-            0x01,  0x10,  0x01,  0x00,  0xD0,  0xD0,  0xD0,  0xD0, // C
-            0xC0,  0xF1,  0x00,  0xF1,  0xB1,  0xB1,  0xB1,  0xB1, // D
-            0x01,  0xD2,  0x00,  0xD2,  0xD1,  0xD1,  0xD1,  0xD1, // D
-            0x10,  0xF2,  0x00,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // E
-            0x01,  0x10,  0x01,  0x00,  0xD0,  0xD0,  0xD0,  0xD0, // E
-            0xC0,  0xF1,  0x00,  0xF1,  0xB1,  0xB1,  0xB1,  0xB1, // F
-            0x01,  0xD2,  0x00,  0xD2,  0xD1,  0xD1,  0xD1,  0xD1 ]; // F
+        IMPLIED     = 0x01,
+        IMMEDIATE   = 0x10,
+        ACCUMULATOR = 0xA0,
+        ZEROPAGE    = 0xB0,
+        ZEROPAGE_X  = 0xB1,
+        ZEROPAGE_Y  = 0xB2,
+        RELATIVE    = 0xC0,
+        ABSOLUTE    = 0xD0,
+        ABSOLUTE_X  = 0xD1,
+        ABSOLUTE_Y  = 0xD2,
+        INDIRECT    = 0xF0,
+        INDEXED_INDIRECT = 0xF1, // INDIRECT_X
+        INDIRECT_INDEXED = 0xF2  // INDIRECT_Y
     }
+
+    private struct registerStruct
+    {
+        ubyte a;  // accumulator
+        ubyte x;  // x-index
+        ubyte y;  // y-index
+        ushort pc; // program counter
+        ushort sp; // stack pointer
+    }
+
+    private registerStruct registers;
+    private ulong cycleCount; // total cycles executed
+    private bool nmi; // non maskable interrupt line
+    private bool rst; // reset interrupt line
+    private bool irq; //software interrupt request line
+
+    private StatusRegister status;
+    private bool pageBoundaryWasCrossed;
+
+    private immutable ushort nmiAddress = 0xFFFA;
+    private immutable ushort resetAddress = 0xFFFC;
+    private immutable ushort irqAddress = 0xFFFE;
+    private immutable ushort stackBaseAddress = 0x0100;
+    private immutable ushort stackTopAddress = 0x01FF;
+
+    static immutable ubyte[256] cycleCountTable = [
+        // 0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
+        7, 6, 0, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6, // 0
+        2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, // 1
+        6, 6, 0, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6, // 2
+        2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, // 3
+        6, 6, 0, 8, 3, 3, 5, 5, 3, 2, 2, 2, 3, 4, 6, 6, // 4
+        2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, // 5
+        6, 6, 0, 8, 3, 3, 5, 5, 4, 2, 2, 2, 5, 4, 6, 6, // 6
+        2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, // 7
+        2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4, // 8
+        2, 6, 0, 6, 4, 4, 4, 4, 2, 5, 2, 5, 5, 5, 5, 5, // 9
+        2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4, // A
+        2, 5, 0, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4, // B
+        2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, // C
+        2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, // D
+        2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, // E
+        2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7 ]; // F
+
+
+    private static immutable ubyte[256] addressModeTable= [
+        //  0      1      2      3      4      5      6      7
+        //  8      9      A      B      C      D      E      F
+        0x01,  0xF2,  0x00,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // 0
+        0x01,  0x10,  0xA0,  0x00,  0xD0,  0xD0,  0xD0,  0xD0, // 0
+        0xC0,  0xF1,  0x00,  0xF1,  0xB1,  0xB1,  0xB1,  0xB1, // 1
+        0x01,  0xD2,  0x00,  0xD2,  0xD1,  0xD1,  0xD1,  0xD1, // 1
+        0xD0,  0xF2,  0x00,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // 2
+        0x01,  0x10,  0xA0,  0x00,  0xD0,  0xD0,  0xD0,  0xD0, // 2
+        0xC2,  0xF1,  0x00,  0xF1,  0xB1,  0xB1,  0xB1,  0xB1, // 3
+        0x01,  0xD2,  0x00,  0xD2,  0xD1,  0xD1,  0xD1,  0xD1, // 3
+        0x01,  0xF1,  0x00,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // 4
+        0x01,  0x10,  0xA0,  0x00,  0xD0,  0xD0,  0xD0,  0xD0, // 4
+        0xC0,  0xF1,  0x00,  0xF1,  0xB1,  0xB1,  0xB1,  0xB1, // 5
+        0x01,  0xD2,  0x00,  0xD2,  0xD1,  0xD1,  0xD1,  0xD1, // 5
+        0xF1,  0xF2,  0x00,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // 6
+        0x01,  0x10,  0xA0,  0x00,  0xF0,  0xD0,  0xD0,  0xD0, // 6
+        0xC0,  0xF1,  0x00,  0xF1,  0xB1,  0xB1,  0xB1,  0xB1, // 7
+        0x01,  0xD2,  0x00,  0xD2,  0xD1,  0xD1,  0xD1,  0xD1, // 7
+        0x00,  0xF2,  0x00,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // 8
+        0x01,  0x00,  0x01,  0x00,  0xD0,  0xD0,  0xD0,  0xD0, // 8
+        0xC0,  0xF1,  0x00,  0xF1,  0xB1,  0xB1,  0xB2,  0xB2, // 9
+        0x01,  0xD2,  0x01,  0x00,  0xD1,  0xD1,  0xD2,  0xD2, // 9
+        0x10,  0xF2,  0x10,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // A
+        0x01,  0x10,  0x01,  0x00,  0xD0,  0xD0,  0xD0,  0xD0, // A
+        0xC0,  0xF1,  0x00,  0xF1,  0xB1,  0xB1,  0xB2,  0xB2, // B
+        0x01,  0xD2,  0x01,  0xD2,  0xD1,  0xD1,  0xD2,  0xD2, // B
+        0x10,  0xF1,  0x00,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // C
+        0x01,  0x10,  0x01,  0x00,  0xD0,  0xD0,  0xD0,  0xD0, // C
+        0xC0,  0xF1,  0x00,  0xF1,  0xB1,  0xB1,  0xB1,  0xB1, // D
+        0x01,  0xD2,  0x00,  0xD2,  0xD1,  0xD1,  0xD1,  0xD1, // D
+        0x10,  0xF2,  0x00,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // E
+        0x01,  0x10,  0x01,  0x00,  0xD0,  0xD0,  0xD0,  0xD0, // E
+        0xC0,  0xF1,  0x00,  0xF1,  0xB1,  0xB1,  0xB1,  0xB1, // F
+        0x01,  0xD2,  0x00,  0xD2,  0xD1,  0xD1,  0xD1,  0xD1 ]; // F
 }
