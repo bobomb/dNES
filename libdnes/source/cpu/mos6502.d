@@ -16,6 +16,8 @@ class MOS6502
     public this()
     {
         status = new StatusRegister;
+        registers = new Registers;
+
         pageBoundaryWasCrossed = false;
     }
 
@@ -41,10 +43,10 @@ class MOS6502
         cpu.powerOn();
 
         assert(cpu.status.value == 0x34);
-        assert(cpu.a == 0);
-        assert(cpu.x == 0);
-        assert(cpu.y == 0);
-        assert(cpu.pc == 0xC000);
+        assert(cpu.registers.a == 0);
+        assert(cpu.registers.x == 0);
+        assert(cpu.registers.y == 0);
+        assert(cpu.registers.pc == 0xC000);
 
         // Do not test the Console.ram constructor here, it should be tested
         // in ram.d
@@ -70,12 +72,12 @@ class MOS6502
         cpu.powerOn();
 
         cpu.status.value = 0x01;
-        cpu.a = cpu.x = cpu.y = 55;
-        cpu.sp = 0xF4;
-        cpu.pc= 0xF000;
+        cpu.registers.a = cpu.registers.x = cpu.registers.y = 55;
+        cpu.registers.sp = 0xF4;
+        cpu.registers.pc= 0xF000;
         cpu.reset();
 
-        assert(cpu.sp == (0xF4 - 0x03));
+        assert(cpu.registers.sp == (0xF4 - 0x03));
         assert(cpu.status.value == (0x21 | 0x04)); // bit 6 (0x20) is always on
     }
 
@@ -90,12 +92,12 @@ class MOS6502
 
         // Case 1: pc register properly incremented
         auto instruction = cpu.fetch();
-        assert(cpu.pc == 0xC001);
+        assert(cpu.registers.pc == 0xC001);
 
         // Case 2: Instruction is properly read
-        Console.ram.write(cpu.pc, 0xFF);  // TODO: Find a way to replace with a MockRam class
+        Console.ram.write(cpu.registers.pc, 0xFF);  // TODO: Find a way to replace with a MockRam class
         instruction = cpu.fetch();
-        assert(cpu.pc == 0xC002);
+        assert(cpu.registers.pc == 0xC002);
         assert(instruction == 0xFF);
     }
 
@@ -209,7 +211,7 @@ class MOS6502
         cpu.rst = true;
         cpu.handleReset();
         assert(cpu.cycleCount == savedCycles + 7);
-        assert(cpu.pc == 0xFC10);
+        assert(cpu.registers.pc == 0xFC10);
         assert(cpu.rst == false);
     }
 
@@ -229,14 +231,14 @@ class MOS6502
         cpu.powerOn();
         auto ram = Console.ram;
         auto savedCycles = cpu.cycleCount;
-        auto savedPC = cpu.pc;
+        auto savedPC = cpu.registers.pc;
         auto savedStatus = cpu.status.value;
         ram.write16(cpu.nmiAddress, 0x1D42); //write interrupt handler address
         cpu.handleNmi();
         assert(cpu.popStack() == savedStatus); //check status registers
         ushort previousPC = cpu.popStack() | (cpu.popStack() << 8); //verify pc write
         assert(cpu.cycleCount == savedCycles + 7);
-        assert(cpu.pc == 0x1D42);
+        assert(cpu.registers.pc == 0x1D42);
         assert(previousPC == savedPC);
 
     }
@@ -261,14 +263,14 @@ class MOS6502
         cpu.status.i = false;
         auto ram = Console.ram;
         auto savedCycles = cpu.cycleCount;
-        auto savedPC = cpu.pc;
+        auto savedPC = cpu.registers.pc;
         auto savedStatus = cpu.status.value;
         ram.write16(cpu.irqAddress, 0xC296); //write interrupt handler address
         cpu.handleIrq();
         assert(cpu.popStack() == savedStatus); //check status registers
         ushort previousPC = cpu.popStack() | (cpu.popStack() << 8); //verify pc write
         assert(cpu.cycleCount == savedCycles + 7);
-        assert(cpu.pc == 0xC296);
+        assert(cpu.registers.pc == 0xC296);
         assert(previousPC == savedPC);
         //case 2 : interrupt disable bit is set
         cpu.status.i = true;
@@ -276,7 +278,7 @@ class MOS6502
         ram.write16(cpu.irqAddress, 0x1111); //write interrupt handler address
         cpu.handleIrq();
         assert(cpu.cycleCount == savedCycles + 0);
-        assert(cpu.pc == 0xC296);
+        assert(cpu.registers.pc == 0xC296);
     }
 
     private ushort delegate(string,ubyte) decodeAddressMode(string instruction, ubyte opcode)
@@ -351,14 +353,14 @@ class MOS6502
     {
         auto cpu = new MOS6502;
         cpu.powerOn();
-        cpu.x = 0x11;
-        cpu.y = 0x45;
+        cpu.registers.x = 0x11;
+        cpu.registers.y = 0x45;
         // Case 1: Non-indexed
         assert(cpu.decodeIndex("LDX",0xA6) == 0x00);
         // Case 2: X-indexed
-        assert (cpu.decodeIndex("ADC", 0x7D) == cpu.x);
+        assert (cpu.decodeIndex("ADC", 0x7D) == cpu.registers.x);
         // case 3: Y-indexed
-        assert (cpu.decodeIndex("ADC", 0x79) == cpu.y);
+        assert (cpu.decodeIndex("ADC", 0x79) == cpu.registers.y);
         //case 4: failure
         try
         {
@@ -384,21 +386,21 @@ class MOS6502
         cpu.powerOn();
         auto ram = Console.ram;
 
-        cpu.pc = 0xC000;
+        cpu.registers.pc = 0xC000;
         // Case 1: Absolute addressing
         ram.write(0xC000, 0x4C);     // JMP, absolute
         ram.write16(0xC001, 0xC005); // argument
 
-        cpu.JMP(ram.read(cpu.pc++));
-        assert(cpu.pc == 0xC005);
+        cpu.JMP(ram.read(cpu.registers.pc++));
+        assert(cpu.registers.pc == 0xC005);
 
         // Case 2: Indirect addressing, page not boundary
         ram.write(0xC005, 0x6C);     // JMP, indirect address
         ram.write16(0xC006, 0xC00C); // address of final address
         ram.write16(0xC00C, 0xEE00);
 
-        cpu.JMP(ram.read(cpu.pc++));
-        assert(cpu.pc == 0xEE00);
+        cpu.JMP(ram.read(cpu.registers.pc++));
+        assert(cpu.registers.pc == 0xEE00);
     }
 
     private void ADC(ubyte opcode)
@@ -465,29 +467,29 @@ class MOS6502
     {
         auto cpu = new MOS6502;
         cpu.powerOn();
-        assert(cpu.a == 0);
+        assert(cpu.registers.a == 0);
         auto ram = Console.ram;
         ulong cycles_start = 0;
         ulong cycles_end = 0;
 
         // Case 1: Immediate
         cycles_start = cpu.cycleCount;
-        cpu.pc = 0x0101;          // move to new page
-        cpu.a = 0x20;             // give an initial value other than 0
+        cpu.registers.pc = 0x0101;          // move to new page
+        cpu.registers.a = 0x20;             // give an initial value other than 0
         cpu.status.c = 0;         // reset to 0
-        ram.write(cpu.pc, 0x40);  // write operand to memory
+        ram.write(cpu.registers.pc, 0x40);  // write operand to memory
 
         cpu.ADC(0x69);            // execute ADC immediate
         cycles_end  = cpu.cycleCount; // get cycle count
-        assert(cpu.a == 0x60);    // 0x20 + 0x40 = 0x60
+        assert(cpu.registers.a == 0x60);    // 0x20 + 0x40 = 0x60
         assert((cycles_end - cycles_start) == 2); // verify cycles taken
 
         // Trigger overflow
-        ram.write(cpu.pc, 0xA0);
+        ram.write(cpu.registers.pc, 0xA0);
         cpu.ADC(0x69);
-        assert(cpu.a == 0x01);
+        assert(cpu.registers.a == 0x01);
         assert(cpu.status.c == 1);
-        ram.write(cpu.pc, 0x02);
+        ram.write(cpu.registers.pc, 0x02);
         cpu.ADC(0x69);
         assert(cpu.status.c == 0);
 
@@ -495,13 +497,13 @@ class MOS6502
 
         // Case 4: Absolute
         cycles_start = cpu.cycleCount;
-        cpu.a = 0;
-        cpu.pc = 0x0400;
-        ram.write16(cpu.pc, 0xB00B);
+        cpu.registers.a = 0;
+        cpu.registers.pc = 0x0400;
+        ram.write16(cpu.registers.pc, 0xB00B);
         ram.write(0xB00B, 0x7D);
         cpu.ADC(0x6D);
         cycles_end  = cpu.cycleCount;
-        assert(cpu.a == 0x7D);
+        assert(cpu.registers.a == 0x7D);
         assert((cycles_end - cycles_start) == 4);
     }
 
@@ -527,7 +529,7 @@ class MOS6502
     {
         auto cpu = new MOS6502;
         cpu.powerOn();
-        assert(cpu.a == 0);
+        assert(cpu.registers.a == 0);
         auto ram = Console.ram;
         ulong cycles_start = 0;
         ulong cycles_end = 0;
@@ -537,15 +539,15 @@ class MOS6502
         ubyte expected_result;
 
         cycles_start = cpu.cycleCount;
-        cpu.pc = 0x0101;
+        cpu.registers.pc = 0x0101;
 
         // iterate through all possible register/memory values and test them
         for (ushort op1 = 0; op1 < 256; op1++) { // operand1
             for (ushort op2 = 0; op2 < 256; op2++) { // operand 2
                 cpu.status.z = 0;
                 cpu.status.n = 0;
-                cpu.a = cast(ubyte)op1;
-                ram.write(cpu.pc, cast(ubyte)op2);
+                cpu.registers.a = cast(ubyte)op1;
+                ram.write(cpu.registers.pc, cast(ubyte)op2);
 
                 cycles_start = cpu.cycleCount;
 
@@ -555,9 +557,9 @@ class MOS6502
 
                 //writef("0b%.8b & 0b%.8b = 0b%.8b\n", op1, op2, expected_result);
                 assert((cycles_end - cycles_start) == expected_cycles);
-                assert(cpu.a == expected_result);
-                assert(cpu.a == 0  ? cpu.status.z == 1 : cpu.status.z == 0);
-                assert(cpu.a >= 128 ? cpu.status.n == 1 : cpu.status.n == 0);
+                assert(cpu.registers.a == expected_result);
+                assert(cpu.registers.a == 0  ? cpu.status.z == 1 : cpu.status.z == 0);
+                assert(cpu.registers.a >= 128 ? cpu.status.n == 1 : cpu.status.n == 0);
             }
         }
     }
@@ -594,34 +596,34 @@ class MOS6502
         auto ram = Console.ram;
         //case 1 forward offset, n flag set, jumps page boundary (4 cycleCount)
         cpu.status.n = 1;
-        ram.write(cpu.pc, 0x4C); // argument
-        auto savedPC = cpu.pc;
+        ram.write(cpu.registers.pc, 0x4C); // argument
+        auto savedPC = cpu.registers.pc;
         auto savedCycles = cpu.cycleCount;
         cpu.BMI(0x30);
-        assert(cpu.pc == savedPC + 0x1 + 0x4C);
+        assert(cpu.registers.pc == savedPC + 0x1 + 0x4C);
         assert(cpu.cycleCount == savedCycles + 0x4);
         //case 2 forward offset, n flag is clear, (2 cycles)
         cpu.status.n = 0;
-        ram.write(cpu.pc, 0x4C); // argument
-        savedPC = cpu.pc;
+        ram.write(cpu.registers.pc, 0x4C); // argument
+        savedPC = cpu.registers.pc;
         savedCycles = cpu.cycleCount;
         cpu.BMI(0x30);
-        assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
+        assert(cpu.registers.pc == savedPC + 0x1); //for this case it should not branch
         assert(cpu.cycleCount == savedCycles + 0x2); //(2 cycles)
         //case 3 negative offset, n flag is set, (3 cycles)
         cpu.status.n = 1;
-        ram.write(cpu.pc, 0xF1); // (-15)
-        savedPC = cpu.pc;
+        ram.write(cpu.registers.pc, 0xF1); // (-15)
+        savedPC = cpu.registers.pc;
         savedCycles = cpu.cycleCount;
         cpu.BMI(0x30);
-        assert(cpu.pc == savedPC + 1 - 0xF);
+        assert(cpu.registers.pc == savedPC + 1 - 0xF);
         assert(cpu.cycleCount == savedCycles + 0x3);
         //case 4 negative offset, n flag is clear (1 cycle)
         cpu.status.n = 0;
-        ram.write(cpu.pc, 0xF1); // argument
-        savedPC = cpu.pc;
+        ram.write(cpu.registers.pc, 0xF1); // argument
+        savedPC = cpu.registers.pc;
         cpu.BMI(0x30);
-        assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
+        assert(cpu.registers.pc == savedPC + 0x1); //for this case it should not branch
     }
 
     //If the zero flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
@@ -652,34 +654,34 @@ class MOS6502
         auto ram = Console.ram;
         //case 1 forward offset, z flag clear, jumps page boundary (4 cycles)
         cpu.status.z = 0;
-        ram.write(cpu.pc, 0x4D); // argument
-        auto savedPC = cpu.pc;
+        ram.write(cpu.registers.pc, 0x4D); // argument
+        auto savedPC = cpu.registers.pc;
         auto savedCycles = cpu.cycleCount;
         cpu.BNE(0xD0);
-        assert(cpu.pc == savedPC + 0x1 + 0x4D);
+        assert(cpu.registers.pc == savedPC + 0x1 + 0x4D);
         assert(cpu.cycleCount == savedCycles + 0x4); //branch will cross a page boundary
         //case 2 forward offset, z flag is set, (2 cycles)
         cpu.status.z = 1;
-        ram.write(cpu.pc, 0x4D); // argument
-        savedPC = cpu.pc;
+        ram.write(cpu.registers.pc, 0x4D); // argument
+        savedPC = cpu.registers.pc;
         savedCycles = cpu.cycleCount;
         cpu.BNE(0xD0);
-        assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
+        assert(cpu.registers.pc == savedPC + 0x1); //for this case it should not branch
         assert(cpu.cycleCount == savedCycles + 0x2); //(2 cycles)
         //case 3 negative offset, z flag is clear (3 cycles)
         cpu.status.z = 0;
-        ram.write(cpu.pc, 0xF1); // (-15)
-        savedPC = cpu.pc;
+        ram.write(cpu.registers.pc, 0xF1); // (-15)
+        savedPC = cpu.registers.pc;
         savedCycles = cpu.cycleCount;
         cpu.BNE(0xD0);
-        assert(cpu.pc == savedPC + 1 - 0xF);
+        assert(cpu.registers.pc == savedPC + 1 - 0xF);
         assert(cpu.cycleCount == savedCycles + 0x3); //branch doesn't cross page boundary
         //case 4 negative offset, z flag is set (1 cycle)
         cpu.status.z = 1;
-        ram.write(cpu.pc, 0xF1); // argument
-        savedPC = cpu.pc;
+        ram.write(cpu.registers.pc, 0xF1); // argument
+        savedPC = cpu.registers.pc;
         cpu.BNE(0xD0);
-        assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
+        assert(cpu.registers.pc == savedPC + 0x1); //for this case it should not branch
     }
 
     //If the negative flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
@@ -710,35 +712,35 @@ class MOS6502
         auto ram = Console.ram;
         //case 1 forward offset, n flag clear, jumps page boundary (4 cycles)
         cpu.status.n = 0;
-        ram.write(cpu.pc, 0x4D); // argument
-        auto savedPC = cpu.pc;
+        ram.write(cpu.registers.pc, 0x4D); // argument
+        auto savedPC = cpu.registers.pc;
         auto savedCycles = cpu.cycleCount;
         cpu.BPL(0x10);
-        assert(cpu.pc == savedPC + 0x1 + 0x4D);
+        assert(cpu.registers.pc == savedPC + 0x1 + 0x4D);
         assert(cpu.cycleCount == savedCycles + 0x4); //branch will cross a page boundary
         //case 2 forward offset, n flag is set, (2 cycles)
         cpu.status.n = 1;
-        ram.write(cpu.pc, 0x4D); // argument
-        savedPC = cpu.pc;
+        ram.write(cpu.registers.pc, 0x4D); // argument
+        savedPC = cpu.registers.pc;
         savedCycles = cpu.cycleCount;
         cpu.BPL(0x10);
-        assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
+        assert(cpu.registers.pc == savedPC + 0x1); //for this case it should not branch
         assert(cpu.cycleCount == savedCycles + 0x2); //(2 cycles)
         //case 3 negative offset, n flag is clear (3 cycles)
         cpu.status.n = 0;
-        ram.write(cpu.pc, 0xF1); // (-15)
-        savedPC = cpu.pc;
+        ram.write(cpu.registers.pc, 0xF1); // (-15)
+        savedPC = cpu.registers.pc;
         savedCycles = cpu.cycleCount;
         cpu.BPL(0x10);
-        assert(cpu.pc == savedPC + 1 - 0xF);
+        assert(cpu.registers.pc == savedPC + 1 - 0xF);
         assert(cpu.cycleCount == savedCycles + 0x3); //branch doesn't cross page boundary
         //case 4 negative offset, n flag is set (2 cycles)
         cpu.status.n = 1;
-        ram.write(cpu.pc, 0xF1); // argument
-        savedPC = cpu.pc;
+        ram.write(cpu.registers.pc, 0xF1); // argument
+        savedPC = cpu.registers.pc;
         savedCycles = cpu.cycleCount;
         cpu.BPL(0x10);
-        assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
+        assert(cpu.registers.pc == savedPC + 0x1); //for this case it should not branch
         assert(cpu.cycleCount == savedCycles + 0x2);
     }
 
@@ -763,16 +765,16 @@ class MOS6502
         cpu.powerOn();
         auto ram = Console.ram;
         auto savedCycles = cpu.cycleCount;
-        auto savedPC = cpu.pc;
+        auto savedPC = cpu.registers.pc;
         auto savedStatus = cpu.status.value;
         ram.write16(cpu.irqAddress, 0x1744); //write interrupt handler address
         //increment PC by 1 to simulate fetch
-        cpu.pc++;
+        cpu.registers.pc++;
         cpu.BRK(0);
         assert(cpu.popStack() == (savedStatus | 0b10000)); //check status registers
         ushort previousPC = cpu.popStack() | (cpu.popStack() << 8); //verify pc write
         assert(cpu.cycleCount == savedCycles + 7);
-        assert(cpu.pc == 0x1744);
+        assert(cpu.registers.pc == 0x1744);
         assert(previousPC == savedPC + 2);
     }
 
@@ -804,35 +806,35 @@ class MOS6502
         auto ram = Console.ram;
         //case 1 forward offset, v flag clear, jumps page boundary (4 cycles)
         cpu.status.v = 0;
-        ram.write(cpu.pc, 0x5D); // argument
-        auto savedPC = cpu.pc;
+        ram.write(cpu.registers.pc, 0x5D); // argument
+        auto savedPC = cpu.registers.pc;
         auto savedCycles = cpu.cycleCount;
         cpu.BVC(0x50);
-        assert(cpu.pc == savedPC + 0x1 + 0x5D);
+        assert(cpu.registers.pc == savedPC + 0x1 + 0x5D);
         assert(cpu.cycleCount == savedCycles + 0x4); //branch will cross a page boundary
         //case 2 forward offset, v flag is set, (2 cycles)
         cpu.status.v = 1;
-        ram.write(cpu.pc, 0x4D); // argument
-        savedPC = cpu.pc;
+        ram.write(cpu.registers.pc, 0x4D); // argument
+        savedPC = cpu.registers.pc;
         savedCycles = cpu.cycleCount;
         cpu.BVC(0x50);
-        assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
+        assert(cpu.registers.pc == savedPC + 0x1); //for this case it should not branch
         assert(cpu.cycleCount == savedCycles + 0x2); //(2 cycles)
         //case 3 negative offset, v flag is clear (3 cycles)
         cpu.status.v = 0;
-        ram.write(cpu.pc, 0xF1); // (-15)
-        savedPC = cpu.pc;
+        ram.write(cpu.registers.pc, 0xF1); // (-15)
+        savedPC = cpu.registers.pc;
         savedCycles = cpu.cycleCount;
         cpu.BVC(0x50);
-        assert(cpu.pc == savedPC + 1 - 0xF);
+        assert(cpu.registers.pc == savedPC + 1 - 0xF);
         assert(cpu.cycleCount == savedCycles + 0x3); //branch doesn't cross page boundary
         //case 4 negative offset, v flag is set (2 cycles)
         cpu.status.v = 1;
-        ram.write(cpu.pc, 0xF1); // argument
-        savedPC = cpu.pc;
+        ram.write(cpu.registers.pc, 0xF1); // argument
+        savedPC = cpu.registers.pc;
         savedCycles = cpu.cycleCount;
         cpu.BVC(0x50);
-        assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
+        assert(cpu.registers.pc == savedPC + 0x1); //for this case it should not branch
         assert(cpu.cycleCount == savedCycles + 0x2);
     }
 
@@ -864,34 +866,34 @@ class MOS6502
         auto ram = Console.ram;
         //case 1 forward offset, v flag set, jumps page boundary (4 cycles)
         cpu.status.v = 1;
-        ram.write(cpu.pc, 0x5C); // argument
-        auto savedPC = cpu.pc;
+        ram.write(cpu.registers.pc, 0x5C); // argument
+        auto savedPC = cpu.registers.pc;
         auto savedCycles = cpu.cycleCount;
         cpu.BVS(0x70);
-        assert(cpu.pc == savedPC + 0x1 + 0x5C);
+        assert(cpu.registers.pc == savedPC + 0x1 + 0x5C);
         assert(cpu.cycleCount == savedCycles + 0x4);
         //case 2 forward offset, v flag is clear, (2 cycles)
         cpu.status.v = 0;
-        ram.write(cpu.pc, 0x4C); // argument
-        savedPC = cpu.pc;
+        ram.write(cpu.registers.pc, 0x4C); // argument
+        savedPC = cpu.registers.pc;
         savedCycles = cpu.cycleCount;
         cpu.BVS(0x70);
-        assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
+        assert(cpu.registers.pc == savedPC + 0x1); //for this case it should not branch
         assert(cpu.cycleCount == savedCycles + 0x2); //(2 cycles)
         //case 3 negative offset, v flag is set, (3 cycles)
         cpu.status.v = 1;
-        ram.write(cpu.pc, 0xF1); // (-15)
-        savedPC = cpu.pc;
+        ram.write(cpu.registers.pc, 0xF1); // (-15)
+        savedPC = cpu.registers.pc;
         savedCycles = cpu.cycleCount;
         cpu.BVS(0x70);
-        assert(cpu.pc == savedPC + 1 - 0xF);
+        assert(cpu.registers.pc == savedPC + 1 - 0xF);
         assert(cpu.cycleCount == savedCycles + 0x3);
         //case 4 negative offset, v flag is clear (1 cycle)
         cpu.status.v = 0;
-        ram.write(cpu.pc, 0xF1); // argument
-        savedPC = cpu.pc;
+        ram.write(cpu.registers.pc, 0xF1); // argument
+        savedPC = cpu.registers.pc;
         cpu.BVS(0x70);
-        assert(cpu.pc == savedPC + 0x1); //for this case it should not branch
+        assert(cpu.registers.pc == savedPC + 0x1); //for this case it should not branch
     }
 
     //Clear carry flag
@@ -977,21 +979,21 @@ class MOS6502
         cpu.powerOn();
         auto savedCycles = cpu.cycleCount;
         //case 1, x register is 0 and decremented to negative value
-        cpu.x = 0;
+        cpu.registers.x = 0;
         cpu.DEX(0xCA);
         assert(cpu.status.n == 1);
         assert(cpu.status.z == 0);
         assert(cpu.cycleCount == savedCycles + 2);
         //case 2, x register is 1 and decremented to zero
         savedCycles = cpu.cycleCount;
-        cpu.x = 0;
+        cpu.registers.x = 0;
         cpu.DEX(0xCA);
         assert(cpu.status.n == 1);
         assert(cpu.status.z == 0);
         assert(cpu.cycleCount == savedCycles + 2);
         //case 3, x register is positive and decremented to positive value
         savedCycles = cpu.cycleCount;
-        cpu.x = 10;
+        cpu.registers.x = 10;
         cpu.DEX(0xCA);
         assert(cpu.status.n == 0);
         assert(cpu.status.z == 0);
@@ -1012,21 +1014,21 @@ class MOS6502
         cpu.powerOn();
         auto savedCycles = cpu.cycleCount;
         //case 1, y register is 0 and decremented to negative value
-        cpu.y = 0;
+        cpu.registers.y = 0;
         cpu.DEY(0x88);
         assert(cpu.status.n == 1);
         assert(cpu.status.z == 0);
         assert(cpu.cycleCount == savedCycles + 2);
         //case 2, y register is 1 and decremented to zero
         savedCycles = cpu.cycleCount;
-        cpu.y = 0;
+        cpu.registers.y = 0;
         cpu.DEY(0x88);
         assert(cpu.status.n == 1);
         assert(cpu.status.z == 0);
         assert(cpu.cycleCount == savedCycles + 2);
         //case 3, y register is positive and decremented to positive value
         savedCycles = cpu.cycleCount;
-        cpu.y = 45;
+        cpu.registers.y = 45;
         cpu.DEY(0x88);
         assert(cpu.status.n == 0);
         assert(cpu.status.z == 0);
@@ -1090,93 +1092,93 @@ class MOS6502
         cpu.powerOn();
         //Case 1 mode 1, immediate mode no flags set
         auto savedCycles = cpu.cycleCount;
-        cpu.a = 0xF;
-        ram.write(cpu.pc, 0xB);
+        cpu.registers.a = 0xF;
+        ram.write(cpu.registers.pc, 0xB);
         cpu.EOR(0x49); //EOR immediate
-        assert(cpu.a == 4);
+        assert(cpu.registers.a == 4);
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 0);
         assert(cpu.cycleCount == savedCycles + 2);
         //Case 2 mode 1, immediate mode negative flag set
         savedCycles = cpu.cycleCount;
-        cpu.a = 0xF;
-        ram.write(cpu.pc, 0xF0);
+        cpu.registers.a = 0xF;
+        ram.write(cpu.registers.pc, 0xF0);
         cpu.EOR(0x49); //EOR immediate
-        assert(cpu.a == 0xFF);
+        assert(cpu.registers.a == 0xFF);
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 1);
         assert(cpu.cycleCount == savedCycles + 2);
         //Case 3 mode 1, immediate mode zero flag set
         savedCycles = cpu.cycleCount;
-        cpu.a = 0xF;
-        ram.write(cpu.pc, 0xF);
+        cpu.registers.a = 0xF;
+        ram.write(cpu.registers.pc, 0xF);
         cpu.EOR(0x49); //EOR immediate
-        assert(cpu.a == 0);
+        assert(cpu.registers.a == 0);
         assert(cpu.status.z == 1);
         assert(cpu.status.n == 0);
         assert(cpu.cycleCount == savedCycles + 2);
         //Case 4 mode 2, zero page mode no flags set
         savedCycles = cpu.cycleCount;
-        cpu.a = 0xF;
-        ram.write(cpu.pc, 0); //write address 0 to offset to zero page address 0
+        cpu.registers.a = 0xF;
+        ram.write(cpu.registers.pc, 0); //write address 0 to offset to zero page address 0
         ram.write(0, 0xB); //write to zero page address 0
         cpu.EOR(0x45); //EOR zero page
-        assert(cpu.a == 4);
+        assert(cpu.registers.a == 4);
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 0);
         assert(cpu.cycleCount == savedCycles + 3);
         //Case 5 mode 3, zero page indexed no flags set
         savedCycles = cpu.cycleCount;
-        cpu.a = 0xF;
-        ram.write(cpu.pc, 2); //write address 2 to offset to zero page address 0
-        cpu.x = 4; //zero page address offset of 4
+        cpu.registers.a = 0xF;
+        ram.write(cpu.registers.pc, 2); //write address 2 to offset to zero page address 0
+        cpu.registers.x = 4; //zero page address offset of 4
         ram.write(2+4, 0xB); //write to zero page address 2 + 4
         cpu.EOR(0x55); //EOR zero page indexed
-        assert(cpu.a == 4);
+        assert(cpu.registers.a == 4);
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 0);
         assert(cpu.cycleCount == savedCycles + 4);
         //Case 6 mode 4, absolute zero flag set
         savedCycles = cpu.cycleCount;
-        cpu.a = 0xF;
-        ram.write16(cpu.pc, 0x1234); //write address 0x1234 to PC
+        cpu.registers.a = 0xF;
+        ram.write16(cpu.registers.pc, 0x1234); //write address 0x1234 to PC
         ram.write(0x1234, 0xF); //write operand m to address 0x1234
         cpu.EOR(0x4D); //EOR absolute
-        assert(cpu.a == 0);
+        assert(cpu.registers.a == 0);
         assert(cpu.status.z == 1);
         assert(cpu.status.n == 0);
         assert(cpu.cycleCount == savedCycles + 4);
         //Case 7 mode 5, absolute indexed x
         savedCycles = cpu.cycleCount;
-        cpu.a = 0xF;
-        ram.write16(cpu.pc, 0x1234); //write address 0x1234 to PC
-        cpu.x = 9;
+        cpu.registers.a = 0xF;
+        ram.write16(cpu.registers.pc, 0x1234); //write address 0x1234 to PC
+        cpu.registers.x = 9;
         ram.write(0x1234+9, 0xF); //write operand m to address 0x1234+9
         cpu.EOR(0x5D); //EOR absolute
-        assert(cpu.a == 0);
+        assert(cpu.registers.a == 0);
         assert(cpu.status.z == 1);
         assert(cpu.status.n == 0);
         assert(cpu.cycleCount == savedCycles + 4);
         //Case 8 mode 6, absolute indexed y, page boundary crossed
         savedCycles = cpu.cycleCount;
-        cpu.a = 0xF;
-        ram.write16(cpu.pc, 0x1234); //write address 0x1234 to PC
-        cpu.y = 0xff;
+        cpu.registers.a = 0xF;
+        ram.write16(cpu.registers.pc, 0x1234); //write address 0x1234 to PC
+        cpu.registers.y = 0xff;
         ram.write(0x1234+0xFF, 0xF); //write operand m to address 0x1234+0xFF
         cpu.EOR(0x59); //EOR absolute
-        assert(cpu.a == 0);
+        assert(cpu.registers.a == 0);
         assert(cpu.status.z == 1);
         assert(cpu.status.n == 0);
         assert(cpu.cycleCount == savedCycles + 5);
         //Case 9 mode 7, indexed indirect (target =
         savedCycles = cpu.cycleCount;
-        cpu.a = 0xF;
-        cpu.x = 4; //X register is 4. This will be added to the operand m (0xA in next line)
-        ram.write(cpu.pc, 0xA); //operand is 0xA
+        cpu.registers.a = 0xF;
+        cpu.registers.x = 4; //X register is 4. This will be added to the operand m (0xA in next line)
+        ram.write(cpu.registers.pc, 0xA); //operand is 0xA
         ram.write(0xE, 0xF0); //write value 0xF0 to zero page address 0xA+4 = 0xE, which is what the target
         //address will be resolved to
         cpu.EOR(0x41);
-        assert(cpu.a == 0xFF);
+        assert(cpu.registers.a == 0xFF);
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 1);
         assert(cpu.cycleCount == savedCycles + 6);
@@ -1215,7 +1217,7 @@ class MOS6502
         cpu.powerOn();
         //Case 1 mode 1, zero page, n is set, z is unset
         auto savedCycles = cpu.cycleCount;
-        ram.write(cpu.pc, 5); //zero page address 5
+        ram.write(cpu.registers.pc, 5); //zero page address 5
         ram.write(5, 0x7F); //0x7F + 1 = 0x80, n flag (bit 7) gets set
         cpu.INC(0xE6);
         assert(ram.read(5) == cast(ubyte)(0x7F + 1));
@@ -1224,7 +1226,7 @@ class MOS6502
         assert(cpu.cycleCount == savedCycles + 5);
         //Case 2 mode 1, zero page, z is set, n is unset
         savedCycles = cpu.cycleCount;
-        ram.write(cpu.pc, 5); //zero page address 5
+        ram.write(cpu.registers.pc, 5); //zero page address 5
         ram.write(5, 0xFF); //0xFF + 1 = 0x00, z flag is set since result is zero
         cpu.INC(0xE6);
         assert(ram.read(5) == cast(ubyte)(0xFF + 1));
@@ -1233,7 +1235,7 @@ class MOS6502
         assert(cpu.cycleCount == savedCycles + 5);
         //Case 3 mode 1, zero page, n is unset, z is unset
         savedCycles = cpu.cycleCount;
-        ram.write(cpu.pc, 5); //zero page address 5
+        ram.write(cpu.registers.pc, 5); //zero page address 5
         ram.write(5, 0x70); //0x70 + 1 = 0x70, z and n flags unset
         cpu.INC(0xE6);
         assert(ram.read(5) == cast(ubyte)(0x70 + 1));
@@ -1242,8 +1244,8 @@ class MOS6502
         assert(cpu.cycleCount == savedCycles + 5);
         //Case 4 mode 2, zero page indexed, n is set z is unset
         savedCycles = cpu.cycleCount;
-        ram.write(cpu.pc, 5); //zero page address 5
-        cpu.x = 6; //index is 6
+        ram.write(cpu.registers.pc, 5); //zero page address 5
+        cpu.registers.x = 6; //index is 6
         ram.write(5+6, 0x7F); //0x7F + 1 = 0x80, n flag (bit 7) gets set
         cpu.INC(0xF6);
         assert(ram.read(5+6) == cast(ubyte)(0x7F + 1));
@@ -1252,7 +1254,7 @@ class MOS6502
         assert(cpu.cycleCount == savedCycles + 6);
         //Case 5 mode 3, absolute, z is set, n is unset
         savedCycles = cpu.cycleCount;
-        ram.write16(cpu.pc, 0x1234); //Absolute address 0x1234
+        ram.write16(cpu.registers.pc, 0x1234); //Absolute address 0x1234
         ram.write(0x1234, 0xFF); //0xFF + 1 = 0x00, z flag is set since result is zero
         cpu.INC(0xEE);
         assert(ram.read(0x1234) == cast(ubyte)(0xFF + 1));
@@ -1261,8 +1263,8 @@ class MOS6502
         assert(cpu.cycleCount == savedCycles + 6);
         //Case 6 mode 4, absolute indexed, n is set, z is unset
         savedCycles = cpu.cycleCount;
-        ram.write16(cpu.pc, 0x1234); //Absolute address 0x1234
-        cpu.x = 8; //index is 8
+        ram.write16(cpu.registers.pc, 0x1234); //Absolute address 0x1234
+        cpu.registers.x = 8; //index is 8
         ram.write(0x1234 + 8, 0x7F); //0x7F + 1 = 0x80, n flag (bit 7) gets set
         cpu.INC(0xFE);
         assert(ram.read(0x1234 + 8) == cast(ubyte)(0x7F + 1));
@@ -1291,17 +1293,17 @@ class MOS6502
         cpu.powerOn();
         //Case 1 mode 1, implied, n is set
         auto savedCycles = cpu.cycleCount;
-        cpu.x = 0x7F;
+        cpu.registers.x = 0x7F;
         cpu.INX(0xE8);
-        assert(cpu.x == cast(ubyte)(0x7F + 1));
+        assert(cpu.registers.x == cast(ubyte)(0x7F + 1));
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 1);
         assert(cpu.cycleCount == savedCycles + 2);
         //Case 2 mode 1, implied, z is set
         savedCycles = cpu.cycleCount;
-        cpu.x = 0xFF;
+        cpu.registers.x = 0xFF;
         cpu.INX(0xE8);
-        assert(cpu.x == cast(ubyte)(0xFF + 1));
+        assert(cpu.registers.x == cast(ubyte)(0xFF + 1));
         assert(cpu.status.z == 1);
         assert(cpu.status.n == 0);
         assert(cpu.cycleCount == savedCycles + 2);
@@ -1329,17 +1331,17 @@ class MOS6502
         cpu.powerOn();
         //Case 1 mode 1, implied, n is set
         auto savedCycles = cpu.cycleCount;
-        cpu.y = 0x7F;
+        cpu.registers.y = 0x7F;
         cpu.INY(0xC8);
-        assert(cpu.y == cast(ubyte)(0x7F + 1));
+        assert(cpu.registers.y == cast(ubyte)(0x7F + 1));
         assert(cpu.status.z == 0);
         assert(cpu.status.n == 1);
         assert(cpu.cycleCount == savedCycles + 2);
         //Case 2 mode 1, implied, z is set
         savedCycles = cpu.cycleCount;
-        cpu.y = 0xFF;
+        cpu.registers.y = 0xFF;
         cpu.INY(0xC8);
-        assert(cpu.y == cast(ubyte)(0xFF + 1));
+        assert(cpu.registers.y == cast(ubyte)(0xFF + 1));
         assert(cpu.status.z == 1);
         assert(cpu.status.n == 0);
         assert(cpu.cycleCount == savedCycles + 2);
@@ -1363,23 +1365,23 @@ class MOS6502
     {
         auto cpu = new MOS6502;
         auto ram = Console.ram;
-        auto savedSp = cpu.sp;
+        auto savedSp = cpu.registers.sp;
         cpu.powerOn();
         //Case 1 mode 1, sp = FF
         auto savedCycles = cpu.cycleCount;
-        cpu.sp = 0xFF;
-        cpu.a = 0xAB;
+        cpu.registers.sp = 0xFF;
+        cpu.registers.a = 0xAB;
         cpu.PHA(0x48);
-        assert(cpu.sp == 0xFE);
-        assert(ram.read(cast(ushort)(cpu.stackBaseAddress + cpu.sp + 1)) == 0xAB);
+        assert(cpu.registers.sp == 0xFE);
+        assert(ram.read(cast(ushort)(cpu.stackBaseAddress + cpu.registers.sp + 1)) == 0xAB);
         assert(cpu.cycleCount == savedCycles + 3);
         //Case 2 mode 1, sp = 0, wraparound to 0xFF
         savedCycles = cpu.cycleCount;
-        cpu.sp = 0x00;
-        cpu.a = 0xCD;
+        cpu.registers.sp = 0x00;
+        cpu.registers.a = 0xCD;
         cpu.PHA(0x48);
-        assert(cpu.sp == 0xFF);
-        assert(ram.read(cast(ushort)(cpu.stackBaseAddress + cast(ubyte)(cpu.sp + 1))) == 0xCD);
+        assert(cpu.registers.sp == 0xFF);
+        assert(ram.read(cast(ushort)(cpu.stackBaseAddress + cast(ubyte)(cpu.registers.sp + 1))) == 0xCD);
         assert(cpu.cycleCount == savedCycles + 3);
     }
 
@@ -1400,24 +1402,24 @@ class MOS6502
     {
         auto cpu = new MOS6502;
         auto ram = Console.ram;
-        auto savedSp = cpu.sp;
+        auto savedSp = cpu.registers.sp;
         cpu.powerOn();
         //Case 1 mode 1, sp = FF
         auto savedCycles = cpu.cycleCount;
-        cpu.sp = 0xFF;
+        cpu.registers.sp = 0xFF;
         cpu.status.value = 0xAB;
         cpu.PHP(0x08);
-        assert(cpu.sp == 0xFE);
-        assert(ram.read(cast(ushort)(cpu.stackBaseAddress + cpu.sp + 1)) == 0xAB);
+        assert(cpu.registers.sp == 0xFE);
+        assert(ram.read(cast(ushort)(cpu.stackBaseAddress + cpu.registers.sp + 1)) == 0xAB);
         assert(cpu.cycleCount == savedCycles + 3);
         //Case 2 mode 1, sp = 0, wraparound to 0xFF
         savedCycles = cpu.cycleCount;
-        cpu.sp = 0x00;
+        cpu.registers.sp = 0x00;
         cpu.status.value = 0xCD;
         assert(cpu.status.value == (0xCD | 0b0010_0000)); //writing to status register will always cause bit 6 to be set
         cpu.PHP(0x08);
-        assert(cpu.sp == 0xFF);
-        assert(ram.read(cast(ushort)(cpu.stackBaseAddress + cast(ubyte)(cpu.sp + 1))) == (0xCD | 0b0010_0000));
+        assert(cpu.registers.sp == 0xFF);
+        assert(ram.read(cast(ushort)(cpu.stackBaseAddress + cast(ubyte)(cpu.registers.sp + 1))) == (0xCD | 0b0010_0000));
         assert(cpu.cycleCount == savedCycles + 3);
     }
 
@@ -1439,29 +1441,31 @@ class MOS6502
     */
     unittest
     {
+        import std.stdio;
+
         auto cpu = new MOS6502;
         auto ram = Console.ram;
-        auto savedSp = cpu.sp;
+        auto savedSp = cpu.registers.sp;
         cpu.powerOn();
         //Case 1 mode 1, sp = FF
         auto savedCycles = cpu.cycleCount;
-        cpu.sp = 0xFF;
-        cpu.a = 0x00;
+        cpu.registers.sp = 0xFF;
+        cpu.registers.a = 0x00;
         cpu.pushStack(0xAB);
-        assert(cpu.sp == 0xFE);
+        assert(cpu.registers.sp == 0xFE);
         cpu.PLA(0x68);
-        assert(cpu.sp == 0xFF);
-        assert(cpu.a == 0xAB);
+        assert(cpu.registers.sp == 0xFF);
+        assert(cpu.registers.a == 0xAB);
         assert(cpu.cycleCount == savedCycles + 4);
         //Case 2 mode 1, sp = 0, wraparound to 0xFF and then back to 0
         savedCycles = cpu.cycleCount;
-        cpu.sp = 0x00;
-        cpu.a = 0x00;
+        cpu.registers.sp = 0x00;
+        cpu.registers.a = 0x00;
         cpu.pushStack(0xCD);
-        assert(cpu.sp == 0xFF);
+        assert(cpu.registers.sp == 0xFF);
         cpu.PLA(0x68);
-        assert(cpu.sp == 0x00);
-        assert(cpu.a == 0xCD);
+        assert(cpu.registers.sp == 0x00);
+        assert(cpu.registers.a == 0xCD);
         assert(cpu.cycleCount == savedCycles + 4);
     }
 
@@ -1482,26 +1486,26 @@ class MOS6502
     {
         auto cpu = new MOS6502;
         auto ram = Console.ram;
-        auto savedSp = cpu.sp;
+        auto savedSp = cpu.registers.sp;
         cpu.powerOn();
         //Case 1 mode 1, sp = FF
         auto savedCycles = cpu.cycleCount;
-        cpu.sp = 0xFF;
+        cpu.registers.sp = 0xFF;
         cpu.status.value = 0x00;
         cpu.pushStack(0xAB);
-        assert(cpu.sp == 0xFE);
+        assert(cpu.registers.sp == 0xFE);
         cpu.PLP(0x28);
-        assert(cpu.sp == 0xFF);
+        assert(cpu.registers.sp == 0xFF);
         assert(cpu.status.value == 0xAB);
         assert(cpu.cycleCount == savedCycles + 4);
         //Case 2 mode 1, sp = 0, wraparound to 0xFF and then back to 0
         savedCycles = cpu.cycleCount;
-        cpu.sp = 0x00;
+        cpu.registers.sp = 0x00;
         cpu.status.value = 0x00;
         cpu.pushStack(0xCD);
-        assert(cpu.sp == 0xFF);
+        assert(cpu.registers.sp == 0xFF);
         cpu.PLP(0x28);
-        assert(cpu.sp == 0x00);
+        assert(cpu.registers.sp == 0x00);
         assert(cpu.status.value == (0xCD | 0b0010_0000)); //writing to status register will always cause bit 6 to be set
         assert(cpu.cycleCount == savedCycles + 4);
     }
@@ -1519,10 +1523,10 @@ class MOS6502
         auto cpu = new MOS6502;
         cpu.powerOn();
 
-        Console.ram.write(cpu.pc+0, 0x7D);
+        Console.ram.write(cpu.registers.pc+0, 0x7D);
         result = cast(ubyte)(cpu.immediateAddressMode());
         assert(result == 0x7D);
-        assert(cpu.pc == 0xC001);
+        assert(cpu.registers.pc == 0xC001);
     }
 
     /* zero page address indicates that byte following the operand is an address
@@ -1549,28 +1553,28 @@ class MOS6502
         auto cpu = new MOS6502;
         cpu.powerOn();
         // write address 0x7D to PC
-        Console.ram.write(cpu.pc, 0x7D);
-        // zero page addressing mode will read address stored at cpu.pc which is
+        Console.ram.write(cpu.registers.pc, 0x7D);
+        // zero page addressing mode will read address stored at cpu.registers.pc which is
         // 0x7D, then return the value stored in ram at 0x007D which should be
         // 0x55
         assert(cpu.zeroPageAddressMode("ADC",0x65) == 0x7D);
-        assert(cpu.pc == 0xC001);
+        assert(cpu.registers.pc == 0xC001);
 
         // set ram at PC to a zero page indexed address, indexing y register
-        Console.ram.write(cpu.pc, 0xFF);
+        Console.ram.write(cpu.registers.pc, 0xFF);
         //set X register to 5
-        cpu.x = 5;
+        cpu.registers.x = 5;
         // example STY will add operand to y register, and return that
         // FF + 5 = overflow to 0x04
         assert(cpu.zeroPageAddressMode("ADC", 0x75) == 0x04);
-        assert(cpu.pc == 0xC002);
+        assert(cpu.registers.pc == 0xC002);
         // set ram at PC to a zero page indexed address, indexing y register
-        Console.ram.write(cpu.pc, 0x10);
+        Console.ram.write(cpu.registers.pc, 0x10);
         //set X register to 5
-        cpu.y = 5;
+        cpu.registers.y = 5;
         // example STY will add operand to y register, and return that
         assert(cpu.zeroPageAddressMode("LDX", 0xB6) == 0x15);
-        assert(cpu.pc == 0xC003);
+        assert(cpu.registers.pc == 0xC003);
     }
 
     /* zero page index address indicates that byte following the operand is an
@@ -1612,14 +1616,14 @@ class MOS6502
         cpu.powerOn();
         // Case 1 & 2 : Relative Addess forward
         // relative offset will be +1
-        Console.ram.write(cpu.pc, 0x01);
+        Console.ram.write(cpu.registers.pc, 0x01);
         result = cpu.relativeAddressMode(); // parameters dont matter
-        assert(cpu.pc == 0xC001);
+        assert(cpu.registers.pc == 0xC001);
         assert(result == 0xC002);
         //relative offset will be +3
-        Console.ram.write(cpu.pc, 0x03);
+        Console.ram.write(cpu.registers.pc, 0x03);
         result = cpu.relativeAddressMode();
-        assert(cpu.pc == 0xC002);
+        assert(cpu.registers.pc == 0xC002);
         assert(result == 0xC005);
         // Case 3: Relative Addess backwards
         // relative offset will be -6 from 0xC003
@@ -1627,20 +1631,20 @@ class MOS6502
         // decode function increments PC by 1 before calculating
         // the final position
         ubyte off = cast(ubyte)-6;
-        Console.ram.write(cpu.pc, off );
+        Console.ram.write(cpu.registers.pc, off );
         result = cpu.relativeAddressMode();
-        assert(cpu.pc == 0xC003);
+        assert(cpu.registers.pc == 0xC003);
         assert(result == 0xBFFD);
         // Case 4: Relative address backwards underflow when PC = 0
         // Result will underflow as 0 - 6 = -6 =
-        cpu.pc = 0x0;
-        Console.ram.write(cpu.pc, off);
+        cpu.registers.pc = 0x0;
+        Console.ram.write(cpu.registers.pc, off);
         result = cpu.relativeAddressMode();
         assert(result == 0xFFFB);
         // Case 5: Relative address forwards oferflow when PC = 0xFFFE
         // and address is + 2
-        cpu.pc = 0xFFFE;
-        Console.ram.write(cpu.pc, 0x02);
+        cpu.registers.pc = 0xFFFE;
+        Console.ram.write(cpu.registers.pc, 0x02);
         result = cpu.relativeAddressMode();
         assert(result == 0x01);
     }
@@ -1666,21 +1670,21 @@ class MOS6502
         // in this case is the address stored in the next two byts.
 
         // write address 0x7D00 to PC
-        Console.ram.write16(cpu.pc, 0x7D00);
+        Console.ram.write16(cpu.registers.pc, 0x7D00);
 
         result = cpu.absoluteAddressMode("ADC", 0x6D);
         assert(result == 0x7D00);
-        assert(cpu.pc == 0xC002);
+        assert(cpu.registers.pc == 0xC002);
 
         // Case 2: Absolute indexed addressing is dead-simple. The argument of the
         // in this case is the address stored in the next two bytes, which is added
         // to third argument which in the index, which is usually X or Y register
         // write address 0x7D00 to PC
-        Console.ram.write16(cpu.pc, 0x7D00);
-        cpu.y = 5;
+        Console.ram.write16(cpu.registers.pc, 0x7D00);
+        cpu.registers.y = 5;
         result = cpu.absoluteAddressMode("ADC", 0x79);
         assert(result == 0x7D05);
-        assert(cpu.pc == 0xC004);
+        assert(cpu.registers.pc == 0xC004);
     }
 
     /* absolute indexed address mode reads 16 bytes so increment pc by 2
@@ -1704,11 +1708,11 @@ class MOS6502
         // in this case is the address stored in the next two bytes, which is added
         // to third argument which in the index, which is usually X or Y register
         // write address 0x7D00 to PC
-        Console.ram.write16(cpu.pc, 0x7D00);
-        cpu.y = 5;
-        result = cpu.absoluteIndexedAddressMode(cpu.y);
+        Console.ram.write16(cpu.registers.pc, 0x7D00);
+        cpu.registers.y = 5;
+        result = cpu.absoluteIndexedAddressMode(cpu.registers.y);
         assert(result == 0x7D05);
-        assert(cpu.pc == 0xC002);
+        assert(cpu.registers.pc == 0xC002);
     } */
 
     private ushort  indirectAddressMode(string instruction = "", ubyte opcode = 0)
@@ -1726,10 +1730,10 @@ class MOS6502
 
         // Case1: Straightforward indirection.
         // Argument is an address contianing an address.
-        Console.ram.write16(cpu.pc, 0x0D10);
+        Console.ram.write16(cpu.registers.pc, 0x0D10);
         Console.ram.write16(0x0D10, 0x1FFF);
         assert(cpu.indirectAddressMode() == 0x1FFF);
-        assert(cpu.pc == 0xC002);
+        assert(cpu.registers.pc == 0xC002);
 
         // Case 2:
         // 6502 has a bug with the JMP instruction in indirect mode. If
@@ -1743,10 +1747,10 @@ class MOS6502
         Console.ram.write(0x1000, 0x7D); // misplaced high byte
 
         // Set up the program counter to read from $10FF and trigger the "bug"
-        Console.ram.write16(cpu.pc, 0x10FF);
+        Console.ram.write16(cpu.registers.pc, 0x10FF);
 
         assert(cpu.indirectAddressMode() == 0x7D55);
-        assert(cpu.pc == 0xC004);
+        assert(cpu.registers.pc == 0xC004);
     }
 
     // indexed indirect mode is a mode where the byte following the opcode is a zero page address
@@ -1768,17 +1772,17 @@ class MOS6502
         cpu.powerOn();
         // Case 1 : no zero page wrapping
         //write zero page addres 0x0F to PC
-        Console.ram.write(cpu.pc, 0x0F);
+        Console.ram.write(cpu.registers.pc, 0x0F);
         //indexed indirect with an idex of 7 will produce: 0x0F + 0x7 = 0x16
-        cpu.x = 0x7;
+        cpu.registers.x = 0x7;
         ushort address = cpu.indexedIndirectAddressMode();
         assert(address == 0x16);
 
         // Case 1 : zero page wrapping
         //write zero page addres 0xFF to PC
-        Console.ram.write(cpu.pc, 0xFF);
+        Console.ram.write(cpu.registers.pc, 0xFF);
         //indexed indirect with an idex of 7 will produce: 0xFF + 0x7 = 0x06
-        cpu.x = 0x7;
+        cpu.registers.x = 0x7;
         address = cpu.indexedIndirectAddressMode();
         assert(address == 0x06);
 
@@ -1802,22 +1806,22 @@ class MOS6502
         cpu.powerOn();
         // Case 1 : no wrapping around address space
         //write zero page addres 0x0F to PC
-        Console.ram.write(cpu.pc, 0x0F);
+        Console.ram.write(cpu.registers.pc, 0x0F);
         //write address 0xCDAB to zero page addres 0x0F and 0x10
         Console.ram.write(0x0F, 0xAB);
         Console.ram.write(0x10, 0xCD);
         //indirect indexed with an idex of 7
-        cpu.y = 0x7;
+        cpu.registers.y = 0x7;
         ushort address = cpu.indirectIndexedAddressMode();
         assert(address == 0xCDAB + 0x7);
         // Case 2 : wrapping around the 16 bit address space
         //write zero page addres 0x0F to PC
-        Console.ram.write(cpu.pc, 0x0F);
+        Console.ram.write(cpu.registers.pc, 0x0F);
         //write address 0xFFFE to zero page addres 0x0F and 0x10
         Console.ram.write(0x0F, 0xFE);
         Console.ram.write(0x10, 0xFF);
         //indirect indexed with an idex of 7
-        cpu.y = 0x7;
+        cpu.registers.y = 0x7;
         address = cpu.indirectIndexedAddressMode();
         assert(address == cast(ushort)(0xFFFE + 7));
     }
@@ -1959,23 +1963,26 @@ class MOS6502
         INDIRECT_INDEXED = 0xF2  // INDIRECT_Y
     }
 
-    private struct registerStruct
+    // For legibility and convenience
+    private class Registers
     {
+        ushort pc; // program counter
+
         ubyte a;  // accumulator
         ubyte x;  // x-index
         ubyte y;  // y-index
-        ushort pc; // program counter
-        ushort sp; // stack pointer
+        ubyte sp; // stack pointer
     }
 
-    private registerStruct registers;
-    private ulong cycleCount; // total cycles executed
+    private ulong cycleCount;    // total cycles executed
+    private bool pageBoundaryWasCrossed;
+
+    private Registers registers;
+    private StatusRegister status; // Stored as a bit-field
+
     private bool nmi; // non maskable interrupt line
     private bool rst; // reset interrupt line
     private bool irq; //software interrupt request line
-
-    private StatusRegister status;
-    private bool pageBoundaryWasCrossed;
 
     private immutable ushort nmiAddress = 0xFFFA;
     private immutable ushort resetAddress = 0xFFFC;
