@@ -8,9 +8,9 @@ public interface IMemory
     public ushort read16(ushort address);
     public ushort buggyRead16(ushort address);
 
-    void write(uint address, ubyte value);
+    public void write(uint address, ubyte value);
     public void write(ushort address, ubyte value);
     public void write16(ushort address, ushort value);
-    void write16(uint  address, ushort value);
+    public void write16(uint  address, ushort value);
 }
 

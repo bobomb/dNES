@@ -10,37 +10,38 @@ import memory;
 
 class Console
 {
-    this()
+    public this()
     {
 
     }
 
-    static void initialize()
+    public static void initialize()
     {
         processor  = new MOS6502();
         ram     = new RAM;
     }
 
-    void loadROM(string filename)
+    public void loadROM(string filename)
     {
         // open file handle
         // foreach byte, dump into memory
     }
 
-    void startEmulation()
+    public void startEmulation()
     {
         this.processor.powerOn();
     }
 
-    void endEmulation()
+    public void endEmulation()
     {
         this.memoryMapper = null;
         this.ram = null;
     }
 
-    static MOS6502 processor;
-    static IMemory ram;
-    static IMemory memoryMapper;
+    // @TODO: This doesnt necessarily have to be public. Just in case for now.
+    public static MOS6502 processor;
+    public static IMemory ram;
+    public static IMemory memoryMapper;
 }
 
 // ex: set foldmethod=syntax foldlevel=1 expandtab ts=4 sts=4 expandtab sw=4 filetype=d :
