@@ -137,7 +137,7 @@ class MOS6502
         import std.file, std.stdio;
 
         // Load a test ROM
-        auto ROMBytes = cast(ubyte[])read("libdnes/nestest.nes");
+        auto ROMBytes = cast(ubyte[])read("libdnes/specs/nestest.nes");
         auto cpu     = new MOS6502;
         cpu.powerOn();
 
