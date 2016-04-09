@@ -24,7 +24,7 @@ class MOS6502
     // From http://wiki.nesdev.com/w/index.php/CPU_power_up_state
     public void powerOn()
     {
-        _status.value = 0x34;
+        _status.asWord = 0x34;
         _registers.a = _registers.x = _registers.y = 0;
         _registers.sp = 0xFD;
 
@@ -42,7 +42,7 @@ class MOS6502
         auto cpu = new MOS6502;
         cpu.powerOn();
 
-        assert(cpu._status.value == 0x34);
+        assert(cpu._status.asWord == 0x34);
         assert(cpu._registers.a == 0);
         assert(cpu._registers.x == 0);
         assert(cpu._registers.y == 0);
@@ -63,7 +63,7 @@ class MOS6502
     private void reset()
     {
         _registers.sp -= 0x03;
-        _status.value = _status.value | 0x04;
+        _status.asWord = _status.asWord | 0x04;
         // TODO: Console.MemoryMapper.Write(0x4015, 0);
     }
     unittest
@@ -71,14 +71,14 @@ class MOS6502
         auto cpu = new MOS6502;
         cpu.powerOn();
 
-        cpu._status.value = 0x01;
+        cpu._status.asWord = 0x01;
         cpu._registers.a = cpu._registers.x = cpu._registers.y = 55;
         cpu._registers.sp = 0xF4;
         cpu._registers.pc= 0xF000;
         cpu.reset();
 
         assert(cpu._registers.sp == (0xF4 - 0x03));
-        assert(cpu._status.value == (0x21 | 0x04)); // bit 6 (0x20) is always on
+        assert(cpu._status.asWord == (0x21 | 0x04)); // bit 6 (0x20) is always on
     }
 
     private ubyte fetch()
@@ -219,7 +219,7 @@ class MOS6502
     {
         pushStack(cast(ubyte)(_registers.pc >> 8)); //write PC high byte to stack
         pushStack(cast(ubyte)(_registers.pc));
-        pushStack(_status.value);
+        pushStack(_status.asWord);
         auto _nmiVectorAddress = Console.ram.read16(_nmiAddress);
         _registers.pc = _nmiVectorAddress;
         _nmi = false;
@@ -232,7 +232,7 @@ class MOS6502
         auto ram = Console.ram;
         auto savedCycles = cpu._cycleCount;
         auto savedPC = cpu._registers.pc;
-        auto savedStatus = cpu._status.value;
+        auto savedStatus = cpu._status.asWord;
         ram.write16(cpu._nmiAddress, 0x1D42); //write interrupt handler address
         cpu.handleNmi();
         assert(cpu.popStack() == savedStatus); //check _status _registers
@@ -250,7 +250,7 @@ class MOS6502
 
         pushStack(cast(ubyte)(_registers.pc >> 8)); //write PC high byte to stack
         pushStack(cast(ubyte)(_registers.pc));
-        pushStack(_status.value);
+        pushStack(_status.asWord);
         auto _irqVectorAddress = Console.ram.read16(_irqAddress);
         _registers.pc = _irqVectorAddress;
         _cycleCount +=7;
@@ -264,7 +264,7 @@ class MOS6502
         auto ram = Console.ram;
         auto savedCycles = cpu._cycleCount;
         auto savedPC = cpu._registers.pc;
-        auto savedStatus = cpu._status.value;
+        auto savedStatus = cpu._status.asWord;
         ram.write16(cpu._irqAddress, 0xC296); //write interrupt handler address
         cpu.handleIrq();
         assert(cpu.popStack() == savedStatus); //check _status _registers
@@ -754,7 +754,7 @@ class MOS6502
         StatusRegister brkStatus = _status;
         //set b flag and write to stack
         brkStatus.b = 1;
-        pushStack(brkStatus.value);
+        pushStack(brkStatus.asWord);
         auto _irqVectorAddress = Console.ram.read16(_irqAddress);
         _registers.pc = _irqVectorAddress; //brk handled similarly to _irq
         _cycleCount += 7;
@@ -766,7 +766,7 @@ class MOS6502
         auto ram = Console.ram;
         auto savedCycles = cpu._cycleCount;
         auto savedPC = cpu._registers.pc;
-        auto savedStatus = cpu._status.value;
+        auto savedStatus = cpu._status.asWord;
         ram.write16(cpu._irqAddress, 0x1744); //write interrupt handler address
         //increment PC by 1 to simulate fetch
         cpu._registers.pc++;
@@ -1391,7 +1391,7 @@ class MOS6502
         auto instructionName = "PHP";
         ushort stackAddress = cast(ushort)(_stackBaseAddress + _registers.sp);
         auto ram = Console.ram;
-        ram.write(stackAddress, _status.value);
+        ram.write(stackAddress, _status.asWord);
         _registers.sp = cast(ubyte)(--_registers.sp);
         _cycleCount += _cycleCountTable[opcode];
     }
@@ -1407,7 +1407,7 @@ class MOS6502
         //Case 1 mode 1, sp = FF
         auto savedCycles = cpu._cycleCount;
         cpu._registers.sp = 0xFF;
-        cpu._status.value = 0xAB;
+        cpu._status.asWord = 0xAB;
         cpu.PHP(0x08);
         assert(cpu._registers.sp == 0xFE);
         assert(ram.read(cast(ushort)(cpu._stackBaseAddress + cpu._registers.sp + 1)) == 0xAB);
@@ -1415,8 +1415,8 @@ class MOS6502
         //Case 2 mode 1, sp = 0, wraparound to 0xFF
         savedCycles = cpu._cycleCount;
         cpu._registers.sp = 0x00;
-        cpu._status.value = 0xCD;
-        assert(cpu._status.value == (0xCD | 0b0010_0000)); //writing to _status register will always cause bit 6 to be set
+        cpu._status.asWord = 0xCD;
+        assert(cpu._status.asWord == (0xCD | 0b0010_0000)); //writing to _status register will always cause bit 6 to be set
         cpu.PHP(0x08);
         assert(cpu._registers.sp == 0xFF);
         assert(ram.read(cast(ushort)(cpu._stackBaseAddress + cast(ubyte)(cpu._registers.sp + 1))) == (0xCD | 0b0010_0000));
@@ -1476,7 +1476,7 @@ class MOS6502
         _registers.sp = cast(ubyte)(++_registers.sp);
         ushort stackAddress = cast(ushort)(_stackBaseAddress + _registers.sp);
         auto ram = Console.ram;
-        _status.value = ram.read(stackAddress);
+        _status.asWord = ram.read(stackAddress);
         _cycleCount += _cycleCountTable[opcode];
     }
     /*  Address Mode    Syntax        Opcode  I-Len  T-Cnt
@@ -1491,22 +1491,22 @@ class MOS6502
         //Case 1 mode 1, sp = FF
         auto savedCycles = cpu._cycleCount;
         cpu._registers.sp = 0xFF;
-        cpu._status.value = 0x00;
+        cpu._status.asWord = 0x00;
         cpu.pushStack(0xAB);
         assert(cpu._registers.sp == 0xFE);
         cpu.PLP(0x28);
         assert(cpu._registers.sp == 0xFF);
-        assert(cpu._status.value == 0xAB);
+        assert(cpu._status.asWord == 0xAB);
         assert(cpu._cycleCount == savedCycles + 4);
         //Case 2 mode 1, sp = 0, wraparound to 0xFF and then back to 0
         savedCycles = cpu._cycleCount;
         cpu._registers.sp = 0x00;
-        cpu._status.value = 0x00;
+        cpu._status.asWord = 0x00;
         cpu.pushStack(0xCD);
         assert(cpu._registers.sp == 0xFF);
         cpu.PLP(0x28);
         assert(cpu._registers.sp == 0x00);
-        assert(cpu._status.value == (0xCD | 0b0010_0000)); //writing to _status register will always cause bit 6 to be set
+        assert(cpu._status.asWord == (0xCD | 0b0010_0000)); //writing to _status register will always cause bit 6 to be set
         assert(cpu._cycleCount == savedCycles + 4);
     }
 
