@@ -1,2 +1,13 @@
 language: d
-d: ldc-0.15.1
+d: 
+  - dmd
+  - gdc
+  - ldc
+os:
+  - linux
+  - osx
+
+matrix:
+  allow_failures:
+    - os: osx
+    - d:  ldc

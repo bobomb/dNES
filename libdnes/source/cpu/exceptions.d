@@ -1,3 +1,4 @@
+// vim: set foldmethod=syntax foldlevel=1 expandtab ts=4 sts=4 expandtab sw=4 filetype=d :
 /* cpu.d
  * Emulation code for the MOS5602 CPU.
  * Copyright (c) 2015 dNES Team.
@@ -14,10 +15,10 @@ class InvalidOpcodeException : Exception
     this(ubyte opcode)
     {
         auto writer = appender!string();
-        formattedWrite(writer, "An invalid opcode was encountered: $%#d",
-                                                                    opcode);
+        formattedWrite(writer, "An invalid opcode was encountered: %#x",
+                       opcode);
         super(writer.data);
-    }    
+    }
 }
 
 
@@ -26,10 +27,22 @@ class InvalidAddressingModeException : Exception
     this(string instruction, ubyte opcode)
     {
         auto writer = appender!string();
-        formattedWrite(writer, "Decoded opcode $%#d ", opcode);
+        formattedWrite(writer, "Decoded opcode %#x ", opcode);
         formattedWrite(writer, "as '%s' but was unable to ", instruction);
         formattedWrite(writer, "determine addressing mode");
         super(writer.data);
-    }    
+    }
 }
-// ex: set foldmethod=marker foldmarker=@region,@endregion expandtab ts=4 sts=4 expandtab sw=4 filetype=d : 
+
+
+class InvalidAddressIndexException : Exception
+{
+    this(string instruction, ubyte opcode)
+    {
+        auto writer = appender!string();
+        formattedWrite(writer, "Decoded opcode %#x ", opcode);
+        formattedWrite(writer, "as '%s' but was unable to ", instruction);
+        formattedWrite(writer, "determine proper indexed addressing mode index");
+        super(writer.data);
+    }
+}

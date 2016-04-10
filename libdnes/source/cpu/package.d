@@ -8,5 +8,3 @@ module cpu;
 
 public import cpu.mos6502;
 public import cpu.statusregister;
-
-// ex: set foldmethod=marker foldmarker=@region,@endregion expandtab ts=4 sts=4 expandtab sw=4 filetype=d : 
