@@ -1,13 +1,27 @@
-// vim: set foldmethod=syntax foldlevel=1 expandtab ts=4 sts=4 expandtab sw=4 filetype=d :
-/* cpu.d
-* Emulation code for the MOS5602 CPU.
-* Copyright (c) 2015 dNES Team.
-* License: GPL 3.0
-*/
+// vim: set foldmethod=marker foldmarker=@fold,endfold textwidth=80 ts=4 sts=4 expandtab autoindent smartindent cindent ft=d :
+/* mos6502.d
+ * Copyright © 2016 dNES contributors. All Rights Reserved.
+ * License: GPL v3.0
+ *
+ * This file is part of dNES.
+ *
+ * dNES is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * dNES is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ */
 
 module cpu.mos6502;
 import cpu.statusregister;
 import cpu.exceptions;
+import cpu.decoder;
 import console;
 import memory;
 
@@ -81,7 +95,7 @@ class MOS6502
         assert(cpu._status.asWord == (0x21 | 0x04)); // bit 6 (0x20) is always on
     }
 
-    private ubyte fetch()
+    package ubyte fetch()
     {
         return Console.ram.read(_registers.pc++);
     }
@@ -101,7 +115,7 @@ class MOS6502
         assert(instruction == 0xFF);
     }
 
-    private void delegate(ubyte) decode(ubyte opcode)
+    package void delegate(ubyte) decode(ubyte opcode)
     {
         switch (opcode)
         {
@@ -284,32 +298,32 @@ class MOS6502
     private ushort delegate(string,ubyte) decodeAddressMode(string instruction, ubyte opcode)
     {
         _pageBoundaryWasCrossed = false; //reset the page boundry crossing flag each time we decode the next address mode
-        AddressingModeType addressModeCode =
-            cast(AddressingModeType)(_addressModeTable[opcode]);
+        Decoder.AddressingMode addressModeCode =
+            cast(Decoder.AddressingMode)(_addressModeTable[opcode]);
 
         switch (addressModeCode)
         {
-        case AddressingModeType.IMPLIED:
+        case Decoder.AddressingMode.IMPLIED:
             return null;
-        case AddressingModeType.IMMEDIATE:
+        case Decoder.AddressingMode.IMMEDIATE:
             return &(immediateAddressMode);
-        case AddressingModeType.ACCUMULATOR:
-        goto case AddressingModeType.IMPLIED;
-        case AddressingModeType.ZEROPAGE:
-        case AddressingModeType.ZEROPAGE_X:
-        case AddressingModeType.ZEROPAGE_Y:
+        case Decoder.AddressingMode.ACCUMULATOR:
+        goto case Decoder.AddressingMode.IMPLIED;
+        case Decoder.AddressingMode.ZEROPAGE:
+        case Decoder.AddressingMode.ZEROPAGE_X:
+        case Decoder.AddressingMode.ZEROPAGE_Y:
             return &(zeroPageAddressMode);
-        case AddressingModeType.RELATIVE:
+        case Decoder.AddressingMode.RELATIVE:
             return &(relativeAddressMode);
-        case AddressingModeType.ABSOLUTE:
-        case AddressingModeType.ABSOLUTE_X:
-        case AddressingModeType.ABSOLUTE_Y:
+        case Decoder.AddressingMode.ABSOLUTE:
+        case Decoder.AddressingMode.ABSOLUTE_X:
+        case Decoder.AddressingMode.ABSOLUTE_Y:
             return &(absoluteAddressMode);
-        case AddressingModeType.INDIRECT:
+        case Decoder.AddressingMode.INDIRECT:
             return &(indirectAddressMode);
-        case AddressingModeType.INDEXED_INDIRECT:
+        case Decoder.AddressingMode.INDEXED_INDIRECT:
             return &(indexedIndirectAddressMode);
-        case AddressingModeType.INDIRECT_INDEXED:
+        case Decoder.AddressingMode.INDIRECT_INDEXED:
             return &(indirectIndexedAddressMode);
         default:
             throw new InvalidAddressingModeException(instruction, opcode);
@@ -417,7 +431,7 @@ class MOS6502
         a = _registers.a;
         c = _status.c;
 
-        if (addressMode == AddressingModeType.IMMEDIATE)
+        if (addressMode == Decoder.AddressingMode.IMMEDIATE)
         {
             m = addressModeFunction("ADC", opcode);
         }
@@ -425,8 +439,8 @@ class MOS6502
         {
             m = ram.read(addressModeFunction("ADC", opcode));
             if (isIndexedMode(opcode) &&
-                    (addressMode != AddressingModeType.INDIRECT_INDEXED) &&
-                    (addressMode != AddressingModeType.ZEROPAGE_X))
+                    (addressMode != Decoder.AddressingMode.INDIRECT_INDEXED) &&
+                    (addressMode != Decoder.AddressingMode.ZEROPAGE_X))
             {
                 if (_pageBoundaryWasCrossed)
                 {
@@ -515,7 +529,7 @@ class MOS6502
         auto ram = Console.ram;
         ubyte operand;
 
-        if (addressMode == AddressingModeType.IMMEDIATE)
+        if (addressMode == Decoder.AddressingMode.IMMEDIATE)
         {
             operand = cast(ubyte)(addressModeFunction("ADC", opcode));
         }
@@ -1046,7 +1060,7 @@ class MOS6502
         ushort a = _registers.a; // a = accumulator value
         ushort m; // m = operand
 
-        if (addressMode == AddressingModeType.IMMEDIATE)
+        if (addressMode == Decoder.AddressingMode.IMMEDIATE)
         {
             m = addressModeFunction("EOR", opcode);
         }
@@ -1055,8 +1069,8 @@ class MOS6502
             m = ram.read(addressModeFunction("EOR", opcode));
 
             if (isIndexedMode(opcode) &&
-                    (addressMode != AddressingModeType.INDIRECT_INDEXED) &&
-                    (addressMode != AddressingModeType.ZEROPAGE_X))
+                    (addressMode != Decoder.AddressingMode.INDIRECT_INDEXED) &&
+                    (addressMode != Decoder.AddressingMode.ZEROPAGE_X))
             {
                 if (_pageBoundaryWasCrossed)
                 {
@@ -1522,7 +1536,7 @@ class MOS6502
         ushort operand; // operand for non accumulator modes
         ubyte accumulator; //operand for accumulator mode
 
-        if(addressMode == AddressingModeType.ACCUMULATOR)
+        if(addressMode == Decoder.AddressingMode.ACCUMULATOR)
         {
             auto carry = _status.c;
             _status.c = cast(bool)(_registers.a & 0x80); //copy bit 7 into carry
@@ -1929,7 +1943,7 @@ class MOS6502
         ubyte addressType = _addressModeTable[opcode];
         ubyte lowerNybble = addressType & 0xF;
 
-        if (addressType == AddressingModeType.IMMEDIATE) return false;
+        if (addressType == Decoder.AddressingMode.IMMEDIATE) return false;
 
         return (lowerNybble != 0);
     }
@@ -1983,22 +1997,6 @@ class MOS6502
         assert(cpu._status.z == 1);
     }
 
-    private enum AddressingModeType : ubyte
-    {
-        IMPLIED     = 0x01,
-        IMMEDIATE   = 0x10,
-        ACCUMULATOR = 0xA0,
-        ZEROPAGE    = 0xB0,
-        ZEROPAGE_X  = 0xB1,
-        ZEROPAGE_Y  = 0xB2,
-        RELATIVE    = 0xC0,
-        ABSOLUTE    = 0xD0,
-        ABSOLUTE_X  = 0xD1,
-        ABSOLUTE_Y  = 0xD2,
-        INDIRECT    = 0xF0,
-        INDEXED_INDIRECT = 0xF1, // INDIRECT_X
-        INDIRECT_INDEXED = 0xF2  // INDIRECT_Y
-    }
 
     // For legibility and convenience
     private class Registers
