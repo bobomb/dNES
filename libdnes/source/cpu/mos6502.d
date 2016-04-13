@@ -1516,7 +1516,7 @@ class MOS6502
     {
         auto instructionName = "ROL";
         auto addressModeFunction = decodeAddressMode(instructionName, opcode);
-        auto addressMode     = addressModeTable[opcode];
+        auto addressMode     = _addressModeTable[opcode];
 
         auto ram = Console.ram;
         ushort operand; // operand for non accumulator modes
@@ -1524,12 +1524,12 @@ class MOS6502
 
         if(addressMode == AddressingModeType.ACCUMULATOR)
         {
-            auto carry = this.status.c;
-            this.status.c = cast(bool)(this.a & 0x80); //copy bit 7 into carry
-            this.status.n = cast(bool)(this.a & 0x40); //copy bit 6 into negative
-            this.a <<= 1; //shift a left by 1 bit (bit 0 should be 1 now)
-            this.a |= carry; //copy carry to bit 0
-            checkAndSetZero(this.a);
+            auto carry = _status.c;
+            _status.c = cast(bool)(_registers.a & 0x80); //copy bit 7 into carry
+            _status.n = cast(bool)(_registers.a & 0x40); //copy bit 6 into negative
+            _registers.a <<= 1; //shift a left by 1 bit (bit 0 should be 1 now)
+            _registers.a |= carry; //copy carry to bit 0
+            checkAndSetZero(_registers.a);
         }
         else //TODO
         {
