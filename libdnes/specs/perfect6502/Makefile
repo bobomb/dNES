@@ -1,8 +1,8 @@
 OBJS=perfect6502.o
 OBJS+=measure.o
 #CFLAGS=-Wall -ggdb -O0
-CFLGAS=-O3 -
-CC=clang
+CFLAGS=-O0 -std=c11
+CC=gcc#clang
 
 all: measure
 
