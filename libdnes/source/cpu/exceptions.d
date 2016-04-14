@@ -9,6 +9,7 @@ module cpu.exceptions;
 import core.stdc.stdio;
 import std.format;
 import std.array;
+import cpu.decoder;
 
 class InvalidOpcodeException : Exception
 {
@@ -20,7 +21,6 @@ class InvalidOpcodeException : Exception
         super(writer.data);
     }
 }
-
 
 class InvalidAddressingModeException : Exception
 {
@@ -46,3 +46,15 @@ class InvalidAddressIndexException : Exception
         super(writer.data);
     }
 }
+
+class ExecutionException : Exception
+{
+    this(Instruction operation)
+    {
+        auto writer = appender!string();
+        formattedWrite(writer, "Decoded opcode %#x ", operation.asByte);
+        formattedWrite(writer, "as '%s'. Cannot continue execution", operation.mnemonic);
+        super(writer.data);
+    }
+}
+

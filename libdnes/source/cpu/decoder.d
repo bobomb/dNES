@@ -25,11 +25,74 @@ import cpu.exceptions;
 import console;
 // @endfold
 
-class Decoder
+// Helper class to provide the error logging and debugging code enough @fold
+// information to identify the instruction we are processing
+// @endfold
+public class Instruction // @fold
 {
+    private this(ubyte opcode)
+    {
+        _asByte = opcode;
+    }
 
-    // @fold Helper classes
-    package enum AddressingMode : ubyte
+    public void execute()
+    {
+        _implementation(this);
+    }
+
+    public ushort fetchOperand()
+    {
+        return _addressModeDelegate(this);
+    }
+    // @fold --- Public Properties ---
+    public @property void delegate(Instruction) implementation() //@fold
+    {
+        return _implementation;
+    } //@endfold
+    public @property ushort delegate(Instruction) addressModeDelegate() //@fold
+    {
+        return _addressModeDelegate;
+    } //@endfold
+    public @property string mnemonic() //@fold
+    {
+        return _mnemonic;
+    } //@endfold
+    public @property ubyte asByte() //@fold
+    {
+        return _asByte;
+    } //@endfold
+    public @property ubyte baseCycleCount() //@fold
+    {
+        return _baseCycleCount;
+    } //@endfold
+    public @property ubyte extraPageBoundaryCycles() //@fold
+    {
+        return _extraIndexingCycles;
+    } //@endfold
+    public @property ubyte extraIndexingCycles() //@fold
+    {
+        return _extraPageBoundaryCycles;
+    } //@endfold
+
+    public @property AddressingMode addressingMode()
+    {
+        return _addressingMode;
+    }
+    // @endfold
+    // @fold --- Private Members ---
+    private void delegate(Instruction) _implementation;
+    private ushort delegate(Instruction) _addressModeDelegate;
+
+    private string _mnemonic;
+    private ubyte  _asByte;
+    private AddressingMode _addressingMode;
+
+    private ubyte  _baseCycleCount;
+    private ubyte  _extraPageBoundaryCycles;
+    private ubyte  _extraIndexingCycles;
+    // @endfold
+    // Helper class
+    package enum AddressingMode : ubyte // @fold
     {
         IMPLIED     = 0x01,
         IMMEDIATE   = 0x10,
@@ -44,118 +107,36 @@ class Decoder
         INDIRECT    = 0xF0,
         INDEXED_INDIRECT = 0xF1, // INDIRECT_X
         INDIRECT_INDEXED = 0xF2  // INDIRECT_Y
-    }
-    // Helper class to provide the error logging and debugging code enough
-    // information to identify the instruction we are processing
-    package struct InstructionInfo // @fold
-    {
-        public @property void delegate(ubyte) implementation() //@fold
-        {
-            return _implementation;
-        } //@endfold
-        public @property ushort delegate(InstructionInfo) addressModeDelegate() //@fold
-        {
-            return _addressModeDelegate;
-        } //@endfold
-        public @property string mnemonic() //@fold
-        {
-            return _mnemonic;
-        } //@endfold
-        public @property ubyte asByte() //@fold
-        {
-            return _asByte;
-        } //@endfold
-        public @property ubyte baseCycleCount() //@fold
-        {
-            return _baseCycleCount;
-        } //@endfold
-        public @property ubyte extraPageBoundaryCycles() //@fold
-        {
-            return _extraIndexingCycles;
-        } //@endfold
-        public @property ubyte extraIndexingCycles() //@fold
-        {
-            return _extraPageBoundaryCycles;
-        } //@endfold
-
-        // @fold  Private Members
-        private void delegate(ubyte) _implementation;
-        private ushort delegate(InstructionInfo) _addressModeDelegate;
-
-        private string _mnemonic;
-        private ubyte  _asByte;
-
-        private ubyte  _baseCycleCount;
-        private ubyte  _extraPageBoundaryCycles;
-        private ubyte  _extraIndexingCycles;
-        // @endfold
     } // @endfold
-    // @endfold
+} // @endfold
 
+class Decoder // @fold
+{
+    alias AddressingMode = Instruction.AddressingMode;
     this(MOS6502 cpu)
     {
         _cpu = cpu;
     }
 
-    public InstructionInfo getInformation(ubyte opcode)
+    public Instruction getInstruction(ubyte opcode) // @fold
     {
-        auto retval = InstructionInfo();
-        getDelegateInfo(retval); // populates _mnemonic and _implementation
+        auto retval = new Instruction(opcode);
+        _setValues(retval);
 
         return retval;
-    }
-
-    private void getDelegateInfo(ref InstructionInfo input) //@fold
-    {
-        ubyte opcode = input._asByte;
-
-        switch (opcode)
-        {
-        // JMP
-        case 0x4C:
-        case 0x6C:
-            input._implementation = &_cpu.JMP;
-            input._mnemonic = __traits(identifier, _cpu.JMP);
-            break;
-        // ADC
-        case 0x69:
-        case 0x65:
-        case 0x75:
-        case 0x6D:
-        case 0x7D:
-        case 0x79:
-        case 0x61:
-        case 0x71:
-            input._implementation = &_cpu.ADC;
-            input._mnemonic = __traits(identifier, _cpu.ADC);
-            break;
-        case 0x78:
-            input._implementation = &_cpu.CLI;
-            input._mnemonic = __traits(identifier, _cpu.CLI);
-            break;
-        case 0x88:
-            input._implementation = &_cpu.DEY;
-            input._mnemonic = __traits(identifier, _cpu.DEY);
-            break;
-        case 0xCA:
-            input._implementation = &_cpu.DEX;
-            input._mnemonic = __traits(identifier, _cpu.DEX);
-            break;
-        case 0xEA:
-            input._implementation = &_cpu.NOP;
-            input._mnemonic = __traits(identifier, _cpu.NOP);
-            break;
-        default:
-            throw new InvalidOpcodeException(opcode);
-        }
     } // @endfold
     unittest  // @fold
     {
-        import std.file, std.stdio;
+        // @TODO: This test should challenge the ability of libdNES to decode
+        // Instructions. Change this to a test where each instruction is decoded
+        // and make it check against a list of valid instructions!
 
+        import std.file, std.stdio;
         // Load a test ROM
         auto ROMBytes = cast(ubyte[])read("libdnes/specs/nestest.nes");
         auto cpu     = new MOS6502;
+        auto decoder = cpu._decoder;
+
         cpu.powerOn();
 
         {
@@ -166,15 +147,188 @@ class Decoder
             }
         }
 
-        auto resultFunc = cpu.decode(cpu.fetch());
-        void delegate(ubyte) expectedFunc = &(cpu.JMP);
+        auto decoded = decoder.getInstruction(cpu.fetch());
+
+        auto resultFunc = decoded.implementation;
+        void delegate(Instruction) expectedFunc = &(cpu.JMP);
         assert(resultFunc == expectedFunc);
     } // @endfold
 
+    private void _setValues(Instruction input) //@fold
+    {
+        ubyte opcode = input._asByte;
+
+        _setImplementation(input);
+        input._baseCycleCount  = _cycleCountTable[input._asByte];
+        _setAddressModeDelegate(input);
+    } // @endfold
+    unittest  // @fold _getAddressModeDelegate()
+    {
+        auto cpu = new MOS6502;
+        auto decoder = cpu._decoder;
+        auto testInput = new Instruction(0x6C); // JMP
+
+        decoder._setAddressModeDelegate(testInput);
+
+        auto resultFunc = testInput.addressModeDelegate;
+        auto expectedFunc = &(cpu.indirectAddressMode);
+        assert(resultFunc == expectedFunc);
+         // @todo
+    } // @endfold
+
+    
+
+    /** Sets an Instruction's implementation delegate and assigns that
+        function's name as the opcode's assembly mnemonic */
+    private void _setImplementation(ref Instruction info) // @fold
+    {
+        auto opcode = info._asByte;
+
+        switch (opcode) //@fold
+        {
+        //KIL
+        case 0x2A:
+            info._implementation = &_cpu.KIL;
+            info._mnemonic = __traits(identifier, _cpu.KIL);
+            break;
+        // branch instrucitons
+        
+        // JMP
+        case 0x4C:
+        case 0x6C:
+            info._implementation = &_cpu.JMP;
+            info._mnemonic = __traits(identifier, _cpu.JMP);
+            break;
+        // ADC
+        case 0x69:
+        case 0x65:
+        case 0x75:
+        case 0x6D:
+        case 0x7D:
+        case 0x79:
+        case 0x61:
+        case 0x71:
+            info._implementation = &_cpu.ADC;
+
+            info._mnemonic = __traits(identifier, _cpu.ADC);
+            break;
+        case 0x29:
+            info._implementation = &_cpu.AND;
+            info._mnemonic = __traits(identifier, _cpu.AND);
+            break;
+        case 0x78:
+            info._implementation = &_cpu.CLI;
+            info._mnemonic = __traits(identifier, _cpu.CLI);
+            break;
+        case 0x88:
+            info._implementation = &_cpu.DEY;
+            info._mnemonic = __traits(identifier, _cpu.DEY);
+            break;
+        case 0xCA:
+            info._implementation = &_cpu.DEX;
+            info._mnemonic = __traits(identifier, _cpu.DEX);
+            break;
+        case 0xEA:
+            info._implementation = &_cpu.NOP;
+            info._mnemonic = __traits(identifier, _cpu.NOP);
+            break;
+        default:
+            throw new InvalidOpcodeException(opcode);
+        } // @endfold
+    } // @endfold
+    unittest // @fold _setImplementation
+    {
+        auto cpu = new MOS6502;
+        auto decoder = cpu._decoder;
+        auto testInput = new Instruction(0x6C); // JMP
+
+        decoder._setValues(testInput);
+
+        auto resultFunc = testInput._implementation;
+        void delegate(Instruction) expectedFunc = &(cpu.JMP);
+        decoder._setImplementation(testInput);
+         // @todo
+    } // @endfold
+
+    private void _setAddressModeDelegate(Instruction operation) // @fold
+    {
+        auto opcode = operation._asByte;
+        auto addressMode = cast(AddressingMode)(_addressModeTable[opcode]);
+        ushort delegate(Instruction) addressModeDelegate;
+
+        switch (addressMode)
+        {
+        case AddressingMode.IMPLIED:
+            addressModeDelegate = null;
+            break;
+        case AddressingMode.IMMEDIATE:
+            addressModeDelegate = &_cpu.immediateAddressMode;
+            break;
+        case AddressingMode.ACCUMULATOR:
+            goto case AddressingMode.IMPLIED;
+        case AddressingMode.ZEROPAGE:
+            addressModeDelegate = &(_cpu.zeroPageAddressMode);
+            break;
+        case AddressingMode.ZEROPAGE_X:
+            goto case AddressingMode.ZEROPAGE;
+        case AddressingMode.ZEROPAGE_Y:
+            goto case AddressingMode.ZEROPAGE;
+        case AddressingMode.RELATIVE:
+            addressModeDelegate = &(_cpu.relativeAddressMode);
+            break;
+        case AddressingMode.ABSOLUTE:
+            addressModeDelegate = &(_cpu.absoluteAddressMode);
+            break;
+        case AddressingMode.ABSOLUTE_X:
+            goto case AddressingMode.ABSOLUTE;
+        case AddressingMode.ABSOLUTE_Y:
+            goto case AddressingMode.ABSOLUTE;
+        case AddressingMode.INDIRECT:
+            addressModeDelegate = &(_cpu.indirectAddressMode);
+            break;
+        case AddressingMode.INDEXED_INDIRECT:
+            addressModeDelegate = &(_cpu.indexedIndirectAddressMode);
+            break;
+        case AddressingMode.INDIRECT_INDEXED:
+            addressModeDelegate = &(_cpu.indirectIndexedAddressMode);
+            break;
+        default:
+            throw new InvalidAddressingModeException(operation._mnemonic, opcode);
+        }
+
+        operation._addressingMode = addressMode;
+        operation._addressModeDelegate = addressModeDelegate;
+    }
+    // @endfold
+    unittest // @fold  _getAddressModeDelegate
+    {
+        auto cpu = new MOS6502;
+        auto decoder = cpu._decoder;
+
+        auto testInput = new Instruction(0x24);
+        testInput._mnemonic = "KIL";
+
+        // @TODO: implement all the test cases
+        // Case 1: Implied & Accumulator
+        // Case 2: Immediate
+        // Case 3: Zero Page
+        // Case 4: Absolute
+        // Case 5: Indirect
+        // Case 6: failure
+        try
+        {
+             decoder._setAddressModeDelegate(testInput); // Invalid opcode
+
+        }
+        catch (InvalidAddressingModeException e)
+        { /* this exception is expected; suppress it. */ }
+    } // @endfold
+
+    /** Private Data Members **/ // @fold
     private MOS6502 _cpu;
 
     private static immutable ubyte[256] _cycleCountTable = [
-        // 0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
+     // 0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
         7, 6, 0, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6, // 0
         2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, // 1
         6, 6, 0, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6, // 2
@@ -228,5 +382,5 @@ class Decoder
         0x01,  0x10,  0x01,  0x00,  0xD0,  0xD0,  0xD0,  0xD0, // E
         0xC0,  0xF1,  0x00,  0xF1,  0xB1,  0xB1,  0xB1,  0xB1, // F
         0x01,  0xD2,  0x00,  0xD2,  0xD1,  0xD1,  0xD1,  0xD1 ]; // F
-}
-
+// @endfold
+} // @endfold
