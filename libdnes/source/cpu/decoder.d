@@ -154,6 +154,26 @@ class Decoder // @fold
         assert(resultFunc == expectedFunc);
     } // @endfold
 
+
+    package ubyte decodeIndex(Instruction operation)
+    {
+        auto indexType = cast(ubyte)(operation.addressingMode);
+        indexType = indexType & ubyte(0x0F); // erase the upper nybble
+
+        switch (indexType)
+        {
+        case 0x00:
+            return 0;
+        case 0x01:
+            return _cpu.registers.x;
+        case 0x02:
+            return _cpu.registers.y;
+        default:
+            throw new InvalidAddressIndexException(operation.mnemonic,
+                                                    operation.asByte);
+        }
+    }
+
     private void _setValues(Instruction input) //@fold
     {
         ubyte opcode = input._asByte;
@@ -162,13 +182,14 @@ class Decoder // @fold
         input._baseCycleCount  = _cycleCountTable[input._asByte];
         _setAddressModeDelegate(input);
     } // @endfold
+
     unittest  // @fold _getAddressModeDelegate()
     {
         auto cpu = new MOS6502;
         auto decoder = cpu._decoder;
         auto testInput = new Instruction(0x6C); // JMP
 
-        decoder._setAddressModeDelegate(testInput);
+       decoder._setAddressModeDelegate(testInput);
 
         auto resultFunc = testInput.addressModeDelegate;
         auto expectedFunc = &(cpu.indirectAddressMode);
@@ -176,7 +197,7 @@ class Decoder // @fold
          // @todo
     } // @endfold
 
-    
+
 
     /** Sets an Instruction's implementation delegate and assigns that
         function's name as the opcode's assembly mnemonic */
@@ -192,7 +213,7 @@ class Decoder // @fold
             info._mnemonic = __traits(identifier, _cpu.KIL);
             break;
         // branch instrucitons
-        
+
         // JMP
         case 0x4C:
         case 0x6C:
@@ -233,7 +254,8 @@ class Decoder // @fold
             info._mnemonic = __traits(identifier, _cpu.NOP);
             break;
         default:
-            throw new InvalidOpcodeException(opcode);
+            goto case 0x2A; // KIL
+            //throw new InvalidOpcodeException(opcode);
         } // @endfold
     } // @endfold
     unittest // @fold _setImplementation
@@ -356,7 +378,7 @@ class Decoder // @fold
         0x01,  0xD2,  0x00,  0xD2,  0xD1,  0xD1,  0xD1,  0xD1, // 1
         0xD0,  0xF2,  0x00,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // 2
         0x01,  0x10,  0xA0,  0x00,  0xD0,  0xD0,  0xD0,  0xD0, // 2
-        0xC2,  0xF1,  0x00,  0xF1,  0xB1,  0xB1,  0xB1,  0xB1, // 3
+        0xC0,  0xF1,  0x00,  0xF1,  0xB1,  0xB1,  0xB1,  0xB1, // 3
         0x01,  0xD2,  0x00,  0xD2,  0xD1,  0xD1,  0xD1,  0xD1, // 3
         0x01,  0xF1,  0x00,  0xF2,  0xB0,  0xB0,  0xB0,  0xB0, // 4
         0x01,  0x10,  0xA0,  0x00,  0xD0,  0xD0,  0xD0,  0xD0, // 4
