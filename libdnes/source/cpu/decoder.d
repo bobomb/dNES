@@ -27,7 +27,6 @@ import console;
 
 // Helper class to provide the error logging and debugging code enough @fold
 // information to identify the instruction we are processing
-// @endfold
 public class Instruction // @fold
 {
     private this(ubyte opcode)
@@ -74,7 +73,7 @@ public class Instruction // @fold
         return _extraPageBoundaryCycles;
     } //@endfold
 
-    public @property AddressingMode addressingMode()
+    public @property Decoder.AddressingMode addressingMode()
     {
         return _addressingMode;
     }
@@ -85,12 +84,18 @@ public class Instruction // @fold
 
     private string _mnemonic;
     private ubyte  _asByte;
-    private AddressingMode _addressingMode;
+    private Decoder.AddressingMode _addressingMode;
 
     private ubyte  _baseCycleCount;
     private ubyte  _extraPageBoundaryCycles;
     private ubyte  _extraIndexingCycles;
     // @endfold
+}
+// @endfold
+//@endfold
+
+class Decoder // @fold
+{
     // Helper class
     package enum AddressingMode : ubyte // @fold
     {
@@ -108,11 +113,7 @@ public class Instruction // @fold
         INDEXED_INDIRECT = 0xF1, // INDIRECT_X
         INDIRECT_INDEXED = 0xF2  // INDIRECT_Y
     } // @endfold
-} // @endfold
 
-class Decoder // @fold
-{
-    alias AddressingMode = Instruction.AddressingMode;
     this(MOS6502 cpu)
     {
         _cpu = cpu;
