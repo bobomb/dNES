@@ -174,6 +174,31 @@ class Decoder // @fold
                                                     operation.asByte);
         }
     }
+    unittest
+    {
+        auto cpu = new MOS6502;
+        cpu.powerOn();
+        cpu._registers.x = 0x11;
+        cpu._registers.y = 0x45;
+        auto instruction = cpu._decoder.getInstruction(0x69);
+        // Case 1: Non-indexed
+        assert(0 == cpu._decoder.decodeIndex(instruction));
+        // Case 2: X-indexed
+        instruction = cpu._decoder.getInstruction(0x7D);
+        assert (cpu._registers.x == cpu._decoder.decodeIndex(instruction));
+        // case 3: Y-indexed
+        instruction = cpu._decoder.getInstruction(0x79);
+        assert (cpu.registers.y == cpu._decoder.decodeIndex(instruction));
+        //case 4: failure
+        instruction = cpu._decoder.getInstruction(0x2A); // KIL
+        try
+        {
+            cpu._decoder.decodeIndex(instruction); // Invalid opcode
+        }
+        catch (InvalidAddressIndexException e)
+        {} // this exception is expected; suppress it.
+    }
+
 
     private void _setValues(Instruction input) //@fold
     {

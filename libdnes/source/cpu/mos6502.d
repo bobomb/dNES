@@ -307,82 +307,26 @@ class MOS6502
         assert(cpu._registers.pc == 0xC296);
     }
 
-    /*
-    private ushort delegate(Instruction) decodeAddressMode(Instruction operation)
-    {
-        _pageBoundaryWasCrossed = false; //reset the page boundry crossing flag each time we decode the next address mode
-        Decoder.AddressingMode addressModeCode =
-            cast(Decoder.AddressingMode)(_addressModeTable[opcode]);
-
-        switch (addressModeCode)
-        {
-        case Decoder.AddressingMode.IMPLIED:
-            return null;
-        case Decoder.AddressingMode.IMMEDIATE:
-            return &(immediateAddressMode);
-        case Decoder.AddressingMode.ACCUMULATOR:
-        goto case Decoder.AddressingMode.IMPLIED;
-        case Decoder.AddressingMode.ZEROPAGE:
-        case Decoder.AddressingMode.ZEROPAGE_X:
-        case Decoder.AddressingMode.ZEROPAGE_Y:
-            return &(zeroPageAddressMode);
-        case Decoder.AddressingMode.RELATIVE:
-            return &(relativeAddressMode);
-        case Decoder.AddressingMode.ABSOLUTE:
-        case Decoder.AddressingMode.ABSOLUTE_X:
-        case Decoder.AddressingMode.ABSOLUTE_Y:
-            return &(absoluteAddressMode);
-        case Decoder.AddressingMode.INDIRECT:
-            return &(indirectAddressMode);
-        case Decoder.AddressingMode.INDEXED_INDIRECT:
-            return &(indexedIndirectAddressMode);
-        case Decoder.AddressingMode.INDIRECT_INDEXED:
-            return &(indirectIndexedAddressMode);
-        default:
-            throw new InvalidAddressingModeException(instruction, opcode);
-        }
-    }
-    unittest
-    {
-        auto cpu = new MOS6502;
-        cpu.powerOn();
-
-        // Case 1: Implied & Accumulator
-        // Case 2: Immediate
-        // Case 3: Zero Page
-        // Case 4: Absolute
-        // Case 5: Indirect
-        // Case 6: failure
-        try
-        {
-            cpu.decodeAddressMode("KIL", 0x2A); // Invalid opcode
-        }
-        catch (InvalidAddressingModeException e)
-        {} // this exception is expected; suppress it.
-    }*/
-
-    private ubyte decodeIndex(string instruction, ubyte opcode)
-    {
-        Instruction operation = _decoder.getInstruction(opcode);
-        return _decoder.decodeIndex(operation);
-    }
-
     unittest
     {
         auto cpu = new MOS6502;
         cpu.powerOn();
         cpu._registers.x = 0x11;
         cpu._registers.y = 0x45;
+        auto instruction = cpu._decoder.getInstruction(0x69);
         // Case 1: Non-indexed
-        assert(cpu.decodeIndex("ADC",0x69) == 0x00);
+        assert(0 == cpu._decoder.decodeIndex(instruction));
         // Case 2: X-indexed
-        assert (cpu.decodeIndex("ADC", 0x7D) == cpu._registers.x);
+        instruction = cpu._decoder.getInstruction(0x7D);
+        assert (cpu._registers.x == cpu._decoder.decodeIndex(instruction));
         // case 3: Y-indexed
-        assert (cpu.decodeIndex("ADC", 0x79) == cpu._registers.y);
+        instruction = cpu._decoder.getInstruction(0x79);
+        assert (cpu.registers.y == cpu._decoder.decodeIndex(instruction));
         //case 4: failure
+        instruction = cpu._decoder.getInstruction(0x2A); // KIL
         try
         {
-            cpu.decodeIndex("KIL", 0x2A); // Invalid opcode
+            cpu._decoder.decodeIndex(instruction); // Invalid opcode
         }
         catch (InvalidAddressIndexException e)
         {} // this exception is expected; suppress it.
@@ -2100,7 +2044,7 @@ class MOS6502
     package Decoder _decoder;
 
     // hardware implementation variables
-    private Registers _registers;
+    package Registers _registers;
     private StatusRegister _status; // Stored as a bit-field
 
     private bool _nmi; // non maskable interrupt line
