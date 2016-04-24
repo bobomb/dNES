@@ -12,4 +12,5 @@ __dummy.html
 *.so
 *.lib
 *.dll
+specs/*
 __test__library__*
