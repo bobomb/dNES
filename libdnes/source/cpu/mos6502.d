@@ -1579,6 +1579,24 @@ class MOS6502
     */
     unittest //TODO
     {
+        auto cpu = new MOS6502;
+        auto ram = Console.ram;
+        auto decoder = cpu._decoder;
+        cpu.powerOn();
+        auto savedCycles = cpu._cycleCount;
+        //Accumulator case 1 : 
+        auto testInstruction = decoder.getInstruction(0x2A);
+        cpu._registers.a = 0xAA; //0b10101010; bit 7 =1, bit 0 = 0 and bit 6 = 0
+        cpu._status.c = 0; //will get toggled
+        cpu._status.n = 1; //will get toggled
+        cpu._status.z = 1; //will get toggled
+        //result should be a = 01010100, c= 1, n = 0, z= 0
+        cpu.ROL(testInstruction);
+        assert(cpu._registers.a == 0b01010100);
+        assert(cpu._status.c == 1);
+        assert(cpu._status.n == 0);
+        assert(cpu._status.z == 0);
+
     }
 
     //***** Addressing Modes *****//
