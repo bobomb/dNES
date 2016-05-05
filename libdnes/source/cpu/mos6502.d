@@ -1567,8 +1567,17 @@ class MOS6502
         }
         else //TODO // (phew)  - bittwiddler1
         {
-            operand = operation.fetchOperand();
+            auto finalAddress = operation.fetchOperand();
+            auto m = ram.read(finalAddress);
+            auto carry = _status.c;
+            _status.c = cast(bool)(m & 0x80); //copy bit 7 into carry
+            _status.n = cast(bool)(m & 0x40); //copy bit 6 into negative
+            m <<= 1; //shift a left by 1 bit (bit 0 should be 1 now)
+            m |= carry; //copy carry to bit 0
+            checkAndSetZero(m);
+            
         }
+        _cycleCount+= operation.baseCycleCount;
     }
     /*  Address Mode    Syntax        Opcode  I-Len  T-Cnt
         Accumulator     ROL A          $2A      1    2
@@ -1596,6 +1605,21 @@ class MOS6502
         assert(cpu._status.c == 1);
         assert(cpu._status.n == 0);
         assert(cpu._status.z == 0);
+        assert(cpu._cycleCount == savedCycles + 2);
+        //Accumulator case 2:
+        savedCycles = cpu._cycleCount;
+        testInstruction = decoder.getInstruction(0x2A);
+        cpu._registers.a = 0x55; //0b01010101; bit 7=0, bit 0=1, bit 6 = 1
+        // current state: c= 1, n = 0, z= 0
+        // c will be toggled to 0, n will be toggled to 1, z will remain 0
+        // bit 0 will be 1 (since carry is placed into bit 0)
+        cpu.ROL(testInstruction);
+        assert(cpu._registers.a == 0b10101011);
+        assert(cpu._status.c == 0);
+        assert(cpu._status.n == 1);
+        assert(cpu._status.z == 0);
+        assert(cpu._cycleCount == savedCycles + 2);
+
 
     }
 
